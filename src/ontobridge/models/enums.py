@@ -36,3 +36,8 @@ class LifecycleStatus(str, Enum):
 class PlacementStatus(str, Enum):
     PLACED = "placed"
     UNRESOLVED = "unresolved"
+
+
+class RelationStatus(str, Enum):
+    RESOLVED = "resolved"
+    UNRESOLVED_VERB = "unresolved_verb"

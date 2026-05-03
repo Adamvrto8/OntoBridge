@@ -12,7 +12,8 @@ from ontobridge.models import (
     MatchResult,
     MatchType,
     PolicyContext,
-    RelationTriple,
+    RelationStatus,
+    SemanticRelation,
     SourceRef,
     SourceType,
     TaxonomyPlacement,
@@ -94,11 +95,12 @@ def test_progressive_enrichment_flow(harvest_record, base_ontology):
 
     # Relations agent
     term.relations = [
-        RelationTriple(
+        SemanticRelation(
             subject_uri="http://ontobridge.dev/ontology/bank/RetailCustomer",
+            predicate_uri="http://ontobridge.dev/ontology/bank/relations/uses",
+            object_label="Mobile app",
+            inverse_predicate_uri="http://ontobridge.dev/ontology/bank/relations/usedBy",
             verb="uses",
-            object_uri="http://ontobridge.dev/ontology/bank/MobileApp",
-            inverse_verb="is used by",
         ),
     ]
     term.fibo_match = FIBOMatch(
@@ -157,14 +159,40 @@ def test_policy_context_rejects_empty_paragraph():
         PolicyContext(paragraph="", document_ref="x.pdf")
 
 
-def test_relation_triple_rejects_empty_components():
+def test_semantic_relation_rejects_empty_components():
     with pytest.raises(ValueError, match="verb"):
-        RelationTriple(
+        SemanticRelation(
             subject_uri="bank:A",
+            predicate_uri="bank-rel:holds",
+            object_label="bank:B",
+            inverse_predicate_uri="bank-rel:heldBy",
             verb="",
-            object_uri="bank:B",
-            inverse_verb="z",
         )
+
+
+def test_semantic_relation_resolved_requires_both_predicates():
+    with pytest.raises(ValueError, match="predicate_uri"):
+        SemanticRelation(
+            subject_uri="bank:A",
+            predicate_uri=None,
+            object_label="bank:B",
+            inverse_predicate_uri="bank-rel:heldBy",
+            verb="holds",
+            status=RelationStatus.RESOLVED,
+        )
+
+
+def test_semantic_relation_unresolved_allows_null_predicates():
+    rel = SemanticRelation(
+        subject_uri="bank:A",
+        predicate_uri=None,
+        object_label="bank:B",
+        inverse_predicate_uri=None,
+        verb="processes",
+        status=RelationStatus.UNRESOLVED_VERB,
+    )
+    assert rel.predicate_uri is None
+    assert rel.status is RelationStatus.UNRESOLVED_VERB
 
 
 def test_taxonomy_placement_validates_uris():

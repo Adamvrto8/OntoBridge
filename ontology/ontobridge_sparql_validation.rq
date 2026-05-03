@@ -1,0 +1,572 @@
+##############################################################################
+# OntoBridge — SPARQL Validation Queries
+#
+# These queries validate the structural integrity and completeness of the
+# OntoBridge ontology. They serve three purposes:
+#
+#   1. Competency questions — prove the ontology can answer domain questions
+#   2. Governance rule checks — map to the 14 rules in the proposal
+#   3. Quality gates — catch gaps before the pipeline populates terms
+#
+# Run against: ontobridge_ontology_v0.1.ttl (or later versions)
+# Engine: Apache Jena / Fuseki, rdflib (Python), or any SPARQL 1.1 engine
+#
+# Prefix block (copy into each query when running standalone):
+#
+#   PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+#   PREFIX owl:      <http://www.w3.org/2002/07/owl#>
+#   PREFIX rdfs:     <http://www.w3.org/2000/01/rdf-schema#>
+#   PREFIX dct:      <http://purl.org/dc/terms/>
+#   PREFIX bank:     <http://ontobridge.dev/ontology/bank/>
+#   PREFIX bank-rel: <http://ontobridge.dev/ontology/bank/relations/>
+#   PREFIX fibo-fnd-pty:  <https://spec.edmcouncil.org/fibo/ontology/FND/Parties/Parties/>
+#   PREFIX fibo-fbc-pas:  <https://spec.edmcouncil.org/fibo/ontology/FBC/ProductsAndServices/FinancialProductsAndServices/>
+#   PREFIX fibo-loan:     <https://spec.edmcouncil.org/fibo/ontology/LOAN/LoanTypes/LoanTypes/>
+#
+##############################################################################
+
+
+# ==========================================================================
+# SECTION A: STRUCTURAL INTEGRITY
+# These catch broken or incomplete ontology structure.
+# ==========================================================================
+
+
+# --------------------------------------------------------------------------
+# A1: Orphan concepts — no broader link and not a top concept
+# Maps to: Governance Rule #11 (orphan / unlinked concept)
+# Expected: EMPTY result set (no orphans)
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX bank: <http://ontobridge.dev/ontology/bank/>
+
+SELECT ?concept ?label
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label ;
+             skos:inScheme ?scheme .
+    FILTER NOT EXISTS { ?concept skos:broader ?parent }
+    FILTER NOT EXISTS { ?concept skos:topConceptOf ?scheme }
+}
+ORDER BY ?label
+
+
+# --------------------------------------------------------------------------
+# A2: Concepts without a definition
+# Maps to: Governance Rule #8 (definition required)
+# Expected: EMPTY result set
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?label
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label .
+    FILTER NOT EXISTS { ?concept skos:definition ?def }
+}
+ORDER BY ?label
+
+
+# --------------------------------------------------------------------------
+# A3: Definitions that are too short (fewer than 12 words)
+# Maps to: Governance Rule #8 (minimum definition length)
+# Expected: EMPTY result set
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?label ?def (strlen(?def) AS ?charLen)
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label ;
+             skos:definition ?def .
+    # Approximate word count: split on spaces, count tokens
+    # SPARQL 1.1 doesn't have a word count function, so we use
+    # a heuristic: average word length ~5.5 chars + space = ~6.5
+    # 12 words × 6.5 ≈ 78 characters minimum
+    FILTER (strlen(?def) < 78)
+}
+ORDER BY ?label
+
+
+# --------------------------------------------------------------------------
+# A4: Circular definitions — definition contains the preferred label
+# Maps to: Governance Rule #9
+# Expected: EMPTY result set
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?label ?def
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label ;
+             skos:definition ?def .
+    FILTER (CONTAINS(LCASE(?def), LCASE(?label)))
+}
+ORDER BY ?label
+
+
+# --------------------------------------------------------------------------
+# A5: Concepts not assigned to any scheme
+# Expected: EMPTY result set
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?label
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label .
+    FILTER NOT EXISTS { ?concept skos:inScheme ?scheme }
+}
+ORDER BY ?label
+
+
+# --------------------------------------------------------------------------
+# A6: Duplicate preferred labels within the same scheme
+# Maps to: Governance Rule #1 (duplicate label)
+# Expected: EMPTY result set
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?scheme ?label (COUNT(?concept) AS ?count)
+WHERE {
+    ?concept a skos:Concept ;
+             skos:inScheme ?scheme ;
+             skos:prefLabel ?label .
+}
+GROUP BY ?scheme ?label
+HAVING (COUNT(?concept) > 1)
+ORDER BY ?scheme ?label
+
+
+# --------------------------------------------------------------------------
+# A7: Concepts where prefLabel duplicates an altLabel of another concept
+#     in the same scheme (potential synonym conflict)
+# Maps to: Governance Rule #3 (fuzzy / synonym match)
+# Expected: Review each result — may be intentional
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept1 ?pref ?concept2 ?alt
+WHERE {
+    ?concept1 a skos:Concept ;
+              skos:inScheme ?scheme ;
+              skos:prefLabel ?pref .
+    ?concept2 a skos:Concept ;
+              skos:inScheme ?scheme ;
+              skos:altLabel ?alt .
+    FILTER (?concept1 != ?concept2)
+    FILTER (LCASE(?pref) = LCASE(?alt))
+}
+ORDER BY ?pref
+
+
+# ==========================================================================
+# SECTION B: FIBO BRIDGING COMPLETENESS
+# These check that the ontology bridges to external standards.
+# ==========================================================================
+
+
+# --------------------------------------------------------------------------
+# B1: All FIBO bridges — list every exactMatch and closeMatch
+# Expected: 15-20 bridges at final delivery
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?label ?matchType ?target
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label .
+    {
+        ?concept skos:exactMatch ?target .
+        BIND ("exactMatch" AS ?matchType)
+    }
+    UNION
+    {
+        ?concept skos:closeMatch ?target .
+        BIND ("closeMatch" AS ?matchType)
+    }
+}
+ORDER BY ?matchType ?label
+
+
+# --------------------------------------------------------------------------
+# B2: Top concepts without any FIBO or Schema.org bridge
+# These are the highest priority for bridging
+# Expected: Shrinks to zero as bridges are added
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?label
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label ;
+             skos:topConceptOf ?scheme .
+    FILTER NOT EXISTS { ?concept skos:exactMatch ?ext }
+    FILTER NOT EXISTS { ?concept skos:closeMatch ?ext2 }
+}
+ORDER BY ?label
+
+
+# --------------------------------------------------------------------------
+# B3: Count bridges per scheme — shows coverage distribution
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?scheme ?schemeLabel
+       (COUNT(DISTINCT ?bridged) AS ?bridgedConcepts)
+       (COUNT(DISTINCT ?concept) AS ?totalConcepts)
+WHERE {
+    ?concept a skos:Concept ;
+             skos:inScheme ?scheme .
+    ?scheme skos:prefLabel ?schemeLabel .
+    OPTIONAL {
+        ?concept skos:exactMatch|skos:closeMatch ?ext .
+        BIND (?concept AS ?bridged)
+    }
+}
+GROUP BY ?scheme ?schemeLabel
+ORDER BY ?schemeLabel
+
+
+# ==========================================================================
+# SECTION C: SEMANTIC RELATIONS INTEGRITY
+# These validate the OWL verb pairs and relation instances.
+# ==========================================================================
+
+
+# --------------------------------------------------------------------------
+# C1: Object properties missing an inverse
+# Expected: EMPTY result set — every verb needs a pair
+# --------------------------------------------------------------------------
+
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?property ?label
+WHERE {
+    ?property a owl:ObjectProperty ;
+              rdfs:label ?label .
+    FILTER NOT EXISTS { ?property owl:inverseOf ?inverse }
+}
+ORDER BY ?label
+
+
+# --------------------------------------------------------------------------
+# C2: Inverse pairs that don't point back to each other
+#     (A inverseOf B, but B not inverseOf A)
+# Expected: EMPTY result set
+# --------------------------------------------------------------------------
+
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?propA ?labelA ?propB ?labelB
+WHERE {
+    ?propA a owl:ObjectProperty ;
+           rdfs:label ?labelA ;
+           owl:inverseOf ?propB .
+    ?propB rdfs:label ?labelB .
+    FILTER NOT EXISTS { ?propB owl:inverseOf ?propA }
+}
+ORDER BY ?labelA
+
+
+# --------------------------------------------------------------------------
+# C3: All relation instances — the semantic triples the pipeline produces
+# --------------------------------------------------------------------------
+
+PREFIX bank:     <http://ontobridge.dev/ontology/bank/>
+PREFIX bank-rel: <http://ontobridge.dev/ontology/bank/relations/>
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX rdfs:     <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?subjectLabel ?verb ?objectLabel
+WHERE {
+    ?subject ?rel ?object .
+    ?rel a owl:ObjectProperty ;
+         rdfs:label ?verb .
+    ?subject skos:prefLabel ?subjectLabel .
+    ?object skos:prefLabel ?objectLabel .
+}
+ORDER BY ?subjectLabel ?verb
+
+
+# --------------------------------------------------------------------------
+# C4: Concepts with no outgoing or incoming relations
+#     (semantically isolated — may need relations added)
+# --------------------------------------------------------------------------
+
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?concept ?label
+WHERE {
+    ?concept a skos:Concept ;
+             skos:prefLabel ?label .
+    FILTER NOT EXISTS {
+        ?concept ?outRel ?target .
+        ?outRel a owl:ObjectProperty .
+    }
+    FILTER NOT EXISTS {
+        ?source ?inRel ?concept .
+        ?inRel a owl:ObjectProperty .
+    }
+}
+ORDER BY ?label
+
+
+# ==========================================================================
+# SECTION D: COMPETENCY QUESTIONS
+# These prove the ontology can answer real domain questions.
+# Include these in your evaluation report.
+# ==========================================================================
+
+
+# --------------------------------------------------------------------------
+# D1: "What customer segments exist and what products can they hold?"
+# --------------------------------------------------------------------------
+
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX bank:     <http://ontobridge.dev/ontology/bank/>
+PREFIX bank-rel: <http://ontobridge.dev/ontology/bank/relations/>
+
+SELECT ?customerLabel ?productLabel
+WHERE {
+    ?customer skos:broader* bank:Customer ;
+              skos:prefLabel ?customerLabel .
+    ?customer bank-rel:holds ?product .
+    ?product skos:prefLabel ?productLabel .
+}
+ORDER BY ?customerLabel
+
+
+# --------------------------------------------------------------------------
+# D2: "What verification steps does a PI loan require?"
+# --------------------------------------------------------------------------
+
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX bank:     <http://ontobridge.dev/ontology/bank/>
+PREFIX bank-rel: <http://ontobridge.dev/ontology/bank/relations/>
+
+SELECT ?processLabel
+WHERE {
+    bank:PILoan bank-rel:requires ?process .
+    ?process skos:prefLabel ?processLabel .
+}
+
+
+# --------------------------------------------------------------------------
+# D3: "What does the application process trigger?"
+# --------------------------------------------------------------------------
+
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX bank:     <http://ontobridge.dev/ontology/bank/>
+PREFIX bank-rel: <http://ontobridge.dev/ontology/bank/relations/>
+
+SELECT ?sourceLabel ?targetLabel
+WHERE {
+    ?source skos:broader* bank:ApplicationProcess ;
+            skos:prefLabel ?sourceLabel .
+    ?source bank-rel:triggers ?target .
+    ?target skos:prefLabel ?targetLabel .
+}
+
+
+# --------------------------------------------------------------------------
+# D4: "Which policies govern which processes?"
+# --------------------------------------------------------------------------
+
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX bank:     <http://ontobridge.dev/ontology/bank/>
+PREFIX bank-rel: <http://ontobridge.dev/ontology/bank/relations/>
+
+SELECT ?docLabel ?processLabel
+WHERE {
+    ?doc skos:broader* bank:Document ;
+         skos:prefLabel ?docLabel .
+    ?doc bank-rel:governs ?process .
+    ?process skos:prefLabel ?processLabel .
+}
+
+
+# --------------------------------------------------------------------------
+# D5: "Show me the full taxonomy tree for a given scheme"
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX bank: <http://ontobridge.dev/ontology/bank/>
+
+SELECT ?level1 ?level2 ?level3
+WHERE {
+    ?l1 skos:topConceptOf bank:SchemeParty ;
+        skos:prefLabel ?level1 .
+    OPTIONAL {
+        ?l2 skos:broader ?l1 ;
+            skos:prefLabel ?level2 .
+        OPTIONAL {
+            ?l3 skos:broader ?l2 ;
+                skos:prefLabel ?level3 .
+        }
+    }
+}
+ORDER BY ?level1 ?level2 ?level3
+
+
+# --------------------------------------------------------------------------
+# D6: "What is the full enriched view of a single concept?"
+#     (This is what the steward sees in the Streamlit detail panel)
+# --------------------------------------------------------------------------
+
+PREFIX skos:     <http://www.w3.org/2004/02/skos/core#>
+PREFIX owl:      <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs:     <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dct:      <http://purl.org/dc/terms/>
+PREFIX bank:     <http://ontobridge.dev/ontology/bank/>
+PREFIX bank-rel: <http://ontobridge.dev/ontology/bank/relations/>
+
+SELECT ?property ?value
+WHERE {
+    {
+        bank:RetailPICustomer skos:prefLabel ?value .
+        BIND ("prefLabel" AS ?property)
+    }
+    UNION {
+        bank:RetailPICustomer skos:altLabel ?value .
+        BIND ("altLabel" AS ?property)
+    }
+    UNION {
+        bank:RetailPICustomer skos:definition ?value .
+        BIND ("definition" AS ?property)
+    }
+    UNION {
+        bank:RetailPICustomer skos:broader ?parent .
+        ?parent skos:prefLabel ?value .
+        BIND ("broader" AS ?property)
+    }
+    UNION {
+        bank:RetailPICustomer skos:inScheme ?scheme .
+        ?scheme skos:prefLabel ?value .
+        BIND ("scheme" AS ?property)
+    }
+    UNION {
+        bank:RetailPICustomer ?rel ?target .
+        ?rel a owl:ObjectProperty ;
+             rdfs:label ?verb .
+        ?target skos:prefLabel ?targetLabel .
+        BIND (CONCAT(?verb, " → ", ?targetLabel) AS ?value)
+        BIND ("relation" AS ?property)
+    }
+    UNION {
+        bank:RetailPICustomer skos:exactMatch ?ext .
+        BIND (STR(?ext) AS ?value)
+        BIND ("exactMatch" AS ?property)
+    }
+    UNION {
+        bank:RetailPICustomer skos:closeMatch ?ext2 .
+        BIND (STR(?ext2) AS ?value)
+        BIND ("closeMatch" AS ?property)
+    }
+}
+ORDER BY ?property
+
+
+# ==========================================================================
+# SECTION E: METRICS FOR EVALUATION REPORT
+# ==========================================================================
+
+
+# --------------------------------------------------------------------------
+# E1: Total concept count per scheme
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?schemeLabel (COUNT(?concept) AS ?conceptCount)
+WHERE {
+    ?concept a skos:Concept ;
+             skos:inScheme ?scheme .
+    ?scheme skos:prefLabel ?schemeLabel .
+}
+GROUP BY ?schemeLabel
+ORDER BY DESC(?conceptCount)
+
+
+# --------------------------------------------------------------------------
+# E2: Taxonomy depth per scheme (max levels)
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?schemeLabel
+       (COUNT(DISTINCT ?l1) AS ?level1)
+       (COUNT(DISTINCT ?l2) AS ?level2)
+       (COUNT(DISTINCT ?l3) AS ?level3)
+WHERE {
+    ?scheme skos:prefLabel ?schemeLabel .
+    ?l1 skos:topConceptOf ?scheme .
+    OPTIONAL {
+        ?l2 skos:broader ?l1 .
+        OPTIONAL { ?l3 skos:broader ?l2 . }
+    }
+}
+GROUP BY ?schemeLabel
+ORDER BY ?schemeLabel
+
+
+# --------------------------------------------------------------------------
+# E3: Synonym coverage — concepts with at least one altLabel
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT
+    (COUNT(DISTINCT ?concept) AS ?totalConcepts)
+    (COUNT(DISTINCT ?withAlt) AS ?withAltLabel)
+WHERE {
+    ?concept a skos:Concept .
+    OPTIONAL {
+        ?concept skos:altLabel ?alt .
+        BIND (?concept AS ?withAlt)
+    }
+}
+
+
+# --------------------------------------------------------------------------
+# E4: Relation density — average relations per concept
+# --------------------------------------------------------------------------
+
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+
+SELECT
+    (COUNT(DISTINCT ?concept) AS ?totalConcepts)
+    (COUNT(?rel) AS ?totalRelations)
+WHERE {
+    ?concept a skos:Concept .
+    OPTIONAL {
+        ?concept ?rel ?target .
+        ?rel a owl:ObjectProperty .
+    }
+}
+
+
+# ==========================================================================
+# END — SPARQL Validation Queries
+# ==========================================================================
+# Run these after every ontology edit and after every pipeline run.
+# Section A should always return empty results (structural integrity).
+# Section B tracks progress toward the 15-20 bridge target.
+# Section C validates the Relations agent output.
+# Section D proves the ontology answers real questions.
+# Section E feeds the evaluation report metrics.
+# ==========================================================================

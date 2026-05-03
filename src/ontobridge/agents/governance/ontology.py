@@ -4,7 +4,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from rdflib import Graph, Literal, Namespace, URIRef
-from rdflib.namespace import OWL, RDF, SKOS
+from rdflib.namespace import OWL, RDF, RDFS, SKOS
+
+
+@dataclass(frozen=True)
+class ObjectPropertyPair:
+    forward_uri: str
+    inverse_uri: str
+    forward_label: str
+    inverse_label: str
 
 
 @dataclass(frozen=True)
@@ -139,6 +147,31 @@ class OntologyIndex:
         return (URIRef(concept_uri), SKOS.topConceptOf, None) in self.graph or any(
             self.graph.objects(URIRef(concept_uri), SKOS.topConceptOf)
         )
+
+    def object_property_pairs(self) -> list[ObjectPropertyPair]:
+        seen: set[tuple[str, str]] = set()
+        pairs: list[ObjectPropertyPair] = []
+        for prop in self.graph.subjects(RDF.type, OWL.ObjectProperty):
+            inverse = self.graph.value(prop, OWL.inverseOf)
+            if inverse is None:
+                continue
+            f_label = self.graph.value(prop, RDFS.label)
+            i_label = self.graph.value(inverse, RDFS.label)
+            if f_label is None or i_label is None:
+                continue
+            key = tuple(sorted((str(prop), str(inverse))))
+            if key in seen:
+                continue
+            seen.add(key)
+            pairs.append(
+                ObjectPropertyPair(
+                    forward_uri=str(prop),
+                    inverse_uri=str(inverse),
+                    forward_label=str(f_label),
+                    inverse_label=str(i_label),
+                )
+            )
+        return pairs
 
 
 def load_ontology(path: str | Path) -> OntologyIndex:

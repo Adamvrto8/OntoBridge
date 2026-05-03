@@ -37,6 +37,7 @@ class PublishedTerm:
     approved_by: str | None = None
     published_at: datetime | None = None
     version: int = 1
+    turtle: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.enriched_term, EnrichedTerm):

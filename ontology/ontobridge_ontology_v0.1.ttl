@@ -1,0 +1,546 @@
+##############################################################################
+# OntoBridge — Domain Ontology (Draft v0.1)
+#
+# Multi-Agent Semantic Term Governance System
+# Domain: Retail Banking (Personal Instalment & Micro segments)
+#
+# Standards: SKOS (taxonomy + labels), OWL (semantic relations), 
+#            Dublin Core (provenance), FIBO (industry bridging)
+#
+# This is a working draft. Terms at level 3+ will be populated by the
+# pipeline once data sources are connected. The upper structure (schemes,
+# level 1-2 concepts, FIBO bridges, verb lexicon) is stable.
+##############################################################################
+
+
+# ==========================================================================
+# NAMESPACE DECLARATIONS
+# ==========================================================================
+
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix dct:      <http://purl.org/dc/terms/> .
+@prefix schema:   <https://schema.org/> .
+
+# FIBO namespaces (EDM Council — Financial Industry Business Ontology)
+@prefix fibo-fnd-pty:  <https://spec.edmcouncil.org/fibo/ontology/FND/Parties/Parties/> .
+@prefix fibo-fnd-agr:  <https://spec.edmcouncil.org/fibo/ontology/FND/Agreements/Contracts/> .
+@prefix fibo-fnd-arr:  <https://spec.edmcouncil.org/fibo/ontology/FND/Arrangements/Documents/> .
+@prefix fibo-fbc-pas:  <https://spec.edmcouncil.org/fibo/ontology/FBC/ProductsAndServices/FinancialProductsAndServices/> .
+@prefix fibo-loan:     <https://spec.edmcouncil.org/fibo/ontology/LOAN/LoanTypes/LoanTypes/> .
+
+# OntoBridge domain namespace
+@prefix bank:     <http://ontobridge.dev/ontology/bank/> .
+@prefix bank-rel: <http://ontobridge.dev/ontology/bank/relations/> .
+
+
+# ==========================================================================
+# ONTOLOGY METADATA
+# ==========================================================================
+
+<http://ontobridge.dev/ontology/bank/>
+    a owl:Ontology ;
+    dct:title "OntoBridge — Retail Banking Domain Ontology"@en ;
+    dct:description "SKOS/OWL ontology for governing business terms in the retail banking domain, covering customer segments, credit products, processes, risk assessment, documents, and channels. Bridges to FIBO and Schema.org."@en ;
+    dct:created "2026-05-01"^^xsd:date ;
+    dct:creator "OntoBridge Team" ;
+    owl:versionInfo "0.1-draft" ;
+    rdfs:comment "Working draft — upper structure stable, leaf terms to be populated by pipeline."@en .
+
+
+# ==========================================================================
+# CONCEPT SCHEMES (top-level domain groupings)
+# ==========================================================================
+
+bank:SchemeParty
+    a skos:ConceptScheme ;
+    skos:prefLabel "Party / Customer"@en ;
+    dct:description "Parties involved in banking relationships — customers, counterparties, and their segment classifications."@en .
+
+bank:SchemeProduct
+    a skos:ConceptScheme ;
+    skos:prefLabel "Financial Product"@en ;
+    dct:description "Banking products offered to customers — credit, deposit, insurance, and payment products."@en .
+
+bank:SchemeProcess
+    a skos:ConceptScheme ;
+    skos:prefLabel "Process"@en ;
+    dct:description "Business processes in retail banking — application, verification, underwriting, servicing."@en .
+
+bank:SchemeRisk
+    a skos:ConceptScheme ;
+    skos:prefLabel "Risk Assessment"@en ;
+    dct:description "Risk evaluation concepts — scoring models, underwriting profiles, risk categories."@en .
+
+bank:SchemeDocument
+    a skos:ConceptScheme ;
+    skos:prefLabel "Document"@en ;
+    dct:description "Documents used in banking processes — policies, contracts, regulatory filings, internal reports."@en .
+
+bank:SchemeChannel
+    a skos:ConceptScheme ;
+    skos:prefLabel "Channel"@en ;
+    dct:description "Customer interaction channels — digital, branch, call centre, partner."@en .
+
+
+# ==========================================================================
+# SCHEME 1: PARTY / CUSTOMER
+# ==========================================================================
+
+# --- Level 1: Top concept ---
+
+bank:Customer
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:topConceptOf bank:SchemeParty ;
+    skos:prefLabel "Customer"@en ;
+    skos:definition "A party that holds or is eligible to hold one or more financial products with the bank."@en ;
+    skos:exactMatch fibo-fnd-pty:PartyInRole ;
+    skos:closeMatch schema:Person .
+
+# --- Level 2: Segment categories ---
+
+bank:RetailCustomer
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:Customer ;
+    skos:prefLabel "Retail customer"@en ;
+    skos:altLabel "Individual customer"@en ;
+    skos:definition "A natural person who holds retail banking products for personal or household use."@en .
+
+bank:CorporateCustomer
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:Customer ;
+    skos:prefLabel "Corporate customer"@en ;
+    skos:altLabel "Business customer"@en ;
+    skos:definition "A legal entity that holds commercial banking products for business purposes."@en .
+
+# --- Level 3: Specific segments ---
+
+bank:RetailPICustomer
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:RetailCustomer ;
+    skos:prefLabel "Retail PI customer"@en ;
+    skos:altLabel "PI customer"@en ;
+    skos:definition "A retail customer in the Personal Instalment segment who holds or is eligible for instalment-based credit products."@en .
+
+bank:RetailMicroCustomer
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:RetailCustomer ;
+    skos:prefLabel "Retail Micro customer"@en ;
+    skos:altLabel "Micro customer"@en ;
+    skos:definition "A retail customer in the Micro segment, typically a sole trader or micro-enterprise served through the retail channel."@en .
+
+bank:SMECustomer
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:CorporateCustomer ;
+    skos:prefLabel "SME customer"@en ;
+    skos:altLabel "Small business customer"@en ;
+    skos:definition "A small or medium-sized enterprise customer served through the corporate banking channel."@en .
+
+
+# ==========================================================================
+# SCHEME 2: FINANCIAL PRODUCT
+# ==========================================================================
+
+# --- Level 1: Top concept ---
+
+bank:FinancialProduct
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:topConceptOf bank:SchemeProduct ;
+    skos:prefLabel "Financial product"@en ;
+    skos:definition "A product or service offered by the bank to its customers."@en ;
+    skos:exactMatch fibo-fbc-pas:FinancialProduct ;
+    skos:closeMatch schema:FinancialProduct .
+
+# --- Level 2: Product categories ---
+
+bank:CreditProduct
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:FinancialProduct ;
+    skos:prefLabel "Credit product"@en ;
+    skos:altLabel "Lending product"@en ;
+    skos:definition "A financial product that provides credit to a customer, creating a repayment obligation."@en .
+
+bank:DepositProduct
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:FinancialProduct ;
+    skos:prefLabel "Deposit product"@en ;
+    skos:definition "A financial product that allows a customer to deposit and hold funds with the bank."@en .
+
+# --- Level 3: Specific products ---
+
+bank:PILoan
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:CreditProduct ;
+    skos:prefLabel "Personal instalment loan"@en ;
+    skos:altLabel "PI loan"@en ;
+    skos:definition "A fixed-term credit product repaid in regular instalments, offered to retail PI customers."@en ;
+    skos:exactMatch fibo-loan:Loan .
+
+bank:MicroLoan
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:CreditProduct ;
+    skos:prefLabel "Micro loan"@en ;
+    skos:definition "A small-value credit product designed for micro-segment customers and sole traders."@en .
+
+bank:SavingsAccount
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:DepositProduct ;
+    skos:prefLabel "Savings account"@en ;
+    skos:definition "A deposit account that accrues interest on the balance held."@en ;
+    skos:closeMatch schema:BankAccount .
+
+bank:CurrentAccount
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:DepositProduct ;
+    skos:prefLabel "Current account"@en ;
+    skos:altLabel "Checking account"@en ;
+    skos:definition "A transactional deposit account used for day-to-day payments and receipts."@en .
+
+
+# ==========================================================================
+# SCHEME 3: PROCESS
+# ==========================================================================
+
+# --- Level 1: Top concept ---
+
+bank:Process
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:topConceptOf bank:SchemeProcess ;
+    skos:prefLabel "Process"@en ;
+    skos:definition "A structured sequence of activities performed by the bank or its systems to achieve a business outcome."@en ;
+    skos:closeMatch schema:Action .
+
+# --- Level 2: Process categories ---
+
+bank:ApplicationProcess
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:Process ;
+    skos:prefLabel "Application process"@en ;
+    skos:definition "The end-to-end process through which a customer applies for a financial product."@en .
+
+bank:VerificationProcess
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:Process ;
+    skos:prefLabel "Verification process"@en ;
+    skos:definition "A process that validates customer identity, eligibility, or documentation."@en .
+
+bank:ServicingProcess
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:Process ;
+    skos:prefLabel "Servicing process"@en ;
+    skos:definition "Ongoing processes related to managing an active product — payments, modifications, collections."@en .
+
+# --- Level 3: Specific processes ---
+
+bank:LoanApplication
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:ApplicationProcess ;
+    skos:prefLabel "Loan application"@en ;
+    skos:definition "The process of submitting, evaluating, and deciding on a customer's request for a credit product."@en .
+
+bank:KYC
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:VerificationProcess ;
+    skos:prefLabel "KYC"@en ;
+    skos:altLabel "Know your customer"@en ;
+    skos:definition "The regulatory process of verifying a customer's identity and assessing risk prior to onboarding."@en .
+
+bank:CreditCheck
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:VerificationProcess ;
+    skos:prefLabel "Credit check"@en ;
+    skos:altLabel "Credit assessment"@en ;
+    skos:definition "The evaluation of a customer's creditworthiness based on internal and external data sources."@en .
+
+
+# ==========================================================================
+# SCHEME 4: RISK ASSESSMENT
+# ==========================================================================
+
+# --- Level 1: Top concept ---
+
+bank:RiskAssessment
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:topConceptOf bank:SchemeRisk ;
+    skos:prefLabel "Risk assessment"@en ;
+    skos:definition "The evaluation of risk associated with a customer, product, or transaction."@en ;
+    skos:closeMatch <https://spec.edmcouncil.org/fibo/ontology/FND/Utilities/Analytics/RiskAnalysis> .
+
+# --- Level 2 ---
+
+bank:CreditScore
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:RiskAssessment ;
+    skos:prefLabel "Credit score"@en ;
+    skos:definition "A numerical score representing a customer's creditworthiness, derived from credit bureau data and internal models."@en .
+
+bank:UWProfile
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:RiskAssessment ;
+    skos:prefLabel "Underwriting profile"@en ;
+    skos:altLabel "UW profile"@en ;
+    skos:definition "A composite risk profile used by the underwriting engine to determine product eligibility and pricing."@en .
+
+# --- Level 3 ---
+
+bank:MicroUWProfile
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:UWProfile ;
+    skos:prefLabel "Micro UW profile"@en ;
+    skos:definition "An underwriting profile specific to the Micro customer segment, with adapted risk thresholds and scoring criteria."@en .
+
+
+# ==========================================================================
+# SCHEME 5: DOCUMENT
+# ==========================================================================
+
+# --- Level 1: Top concept ---
+
+bank:Document
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:topConceptOf bank:SchemeDocument ;
+    skos:prefLabel "Document"@en ;
+    skos:definition "A recorded artifact — physical or digital — that contains information relevant to banking operations."@en ;
+    skos:closeMatch fibo-fnd-arr:Document .
+
+# --- Level 2 ---
+
+bank:PolicyDocument
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:broader bank:Document ;
+    skos:prefLabel "Policy document"@en ;
+    skos:definition "An internal document that defines rules, procedures, and guidelines governing banking operations."@en .
+
+bank:Contract
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:broader bank:Document ;
+    skos:prefLabel "Contract"@en ;
+    skos:altLabel "Agreement"@en ;
+    skos:definition "A legally binding document between the bank and a customer or counterparty."@en ;
+    skos:exactMatch fibo-fnd-agr:Contract .
+
+bank:RegulatoryFiling
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:broader bank:Document ;
+    skos:prefLabel "Regulatory filing"@en ;
+    skos:definition "A document submitted to a regulatory authority in compliance with legal requirements."@en .
+
+
+# ==========================================================================
+# SCHEME 6: CHANNEL
+# ==========================================================================
+
+# --- Level 1: Top concept ---
+
+bank:Channel
+    a skos:Concept ;
+    skos:inScheme bank:SchemeChannel ;
+    skos:topConceptOf bank:SchemeChannel ;
+    skos:prefLabel "Channel"@en ;
+    skos:definition "A medium through which customers interact with the bank to access products and services."@en ;
+    skos:closeMatch schema:ServiceChannel .
+
+# --- Level 2 ---
+
+bank:MobileApp
+    a skos:Concept ;
+    skos:inScheme bank:SchemeChannel ;
+    skos:broader bank:Channel ;
+    skos:prefLabel "Mobile app"@en ;
+    skos:altLabel "Mobile banking"@en ;
+    skos:definition "A smartphone application provided by the bank for account management, payments, and product applications."@en .
+
+bank:Branch
+    a skos:Concept ;
+    skos:inScheme bank:SchemeChannel ;
+    skos:broader bank:Channel ;
+    skos:prefLabel "Branch"@en ;
+    skos:altLabel "Physical branch"@en ;
+    skos:definition "A physical banking location where customers can access services in person."@en .
+
+bank:OnlineBanking
+    a skos:Concept ;
+    skos:inScheme bank:SchemeChannel ;
+    skos:broader bank:Channel ;
+    skos:prefLabel "Online banking"@en ;
+    skos:altLabel "Internet banking"@en ;
+    skos:definition "The bank's web-based platform for account access and transaction management."@en .
+
+bank:CallCentre
+    a skos:Concept ;
+    skos:inScheme bank:SchemeChannel ;
+    skos:broader bank:Channel ;
+    skos:prefLabel "Call centre"@en ;
+    skos:altLabel "Contact centre"@en ;
+    skos:definition "A telephone-based service channel for customer inquiries, support, and product applications."@en .
+
+
+# ==========================================================================
+# SEMANTIC RELATIONS (OWL Object Properties + inverses)
+# ==========================================================================
+# These are the bidirectional verb pairs from the inverse verb lexicon.
+# The Relations agent will populate instances of these properties.
+# ==========================================================================
+
+# --- submits / submittedBy ---
+bank-rel:submits
+    a owl:ObjectProperty ;
+    rdfs:label "submits"@en ;
+    rdfs:comment "A party submits a request, application, or document."@en ;
+    rdfs:domain bank:Customer ;
+    rdfs:range bank:LoanApplication ;
+    owl:inverseOf bank-rel:submittedBy .
+
+bank-rel:submittedBy
+    a owl:ObjectProperty ;
+    rdfs:label "submitted by"@en ;
+    rdfs:comment "An application or document is submitted by a party."@en ;
+    owl:inverseOf bank-rel:submits .
+
+# --- uses / usedBy ---
+bank-rel:uses
+    a owl:ObjectProperty ;
+    rdfs:label "uses"@en ;
+    rdfs:comment "A party uses a channel, product, or system."@en ;
+    owl:inverseOf bank-rel:usedBy .
+
+bank-rel:usedBy
+    a owl:ObjectProperty ;
+    rdfs:label "used by"@en ;
+    owl:inverseOf bank-rel:uses .
+
+# --- holds / heldBy ---
+bank-rel:holds
+    a owl:ObjectProperty ;
+    rdfs:label "holds"@en ;
+    rdfs:comment "A customer holds a financial product."@en ;
+    rdfs:domain bank:Customer ;
+    rdfs:range bank:FinancialProduct ;
+    owl:inverseOf bank-rel:heldBy .
+
+bank-rel:heldBy
+    a owl:ObjectProperty ;
+    rdfs:label "held by"@en ;
+    owl:inverseOf bank-rel:holds .
+
+# --- evaluates / evaluatedBy ---
+bank-rel:evaluates
+    a owl:ObjectProperty ;
+    rdfs:label "evaluates"@en ;
+    rdfs:comment "A process or assessment evaluates a party or application."@en ;
+    owl:inverseOf bank-rel:evaluatedBy .
+
+bank-rel:evaluatedBy
+    a owl:ObjectProperty ;
+    rdfs:label "evaluated by"@en ;
+    owl:inverseOf bank-rel:evaluates .
+
+# --- requires / requiredBy ---
+bank-rel:requires
+    a owl:ObjectProperty ;
+    rdfs:label "requires"@en ;
+    rdfs:comment "A product or process requires a verification, document, or condition."@en ;
+    owl:inverseOf bank-rel:requiredBy .
+
+bank-rel:requiredBy
+    a owl:ObjectProperty ;
+    rdfs:label "required by"@en ;
+    owl:inverseOf bank-rel:requires .
+
+# --- produces / producedBy ---
+bank-rel:produces
+    a owl:ObjectProperty ;
+    rdfs:label "produces"@en ;
+    rdfs:comment "A process produces an output — a score, a decision, a document."@en ;
+    owl:inverseOf bank-rel:producedBy .
+
+bank-rel:producedBy
+    a owl:ObjectProperty ;
+    rdfs:label "produced by"@en ;
+    owl:inverseOf bank-rel:produces .
+
+# --- governs / governedBy ---
+bank-rel:governs
+    a owl:ObjectProperty ;
+    rdfs:label "governs"@en ;
+    rdfs:comment "A policy or rule governs a process, product, or decision."@en ;
+    owl:inverseOf bank-rel:governedBy .
+
+bank-rel:governedBy
+    a owl:ObjectProperty ;
+    rdfs:label "governed by"@en ;
+    owl:inverseOf bank-rel:governs .
+
+# --- triggers / triggeredBy ---
+bank-rel:triggers
+    a owl:ObjectProperty ;
+    rdfs:label "triggers"@en ;
+    rdfs:comment "An event or action triggers a process or assessment."@en ;
+    owl:inverseOf bank-rel:triggeredBy .
+
+bank-rel:triggeredBy
+    a owl:ObjectProperty ;
+    rdfs:label "triggered by"@en ;
+    owl:inverseOf bank-rel:triggers .
+
+
+# ==========================================================================
+# SAMPLE RELATION INSTANCES
+# ==========================================================================
+# These demonstrate how the Relations agent would populate triples.
+# In production, the agent generates these automatically.
+# ==========================================================================
+
+bank:RetailPICustomer  bank-rel:submits     bank:LoanApplication .
+bank:RetailPICustomer  bank-rel:holds       bank:PILoan .
+bank:RetailPICustomer  bank-rel:uses        bank:MobileApp .
+bank:CreditCheck       bank-rel:evaluates   bank:RetailPICustomer .
+bank:CreditCheck       bank-rel:produces    bank:CreditScore .
+bank:PILoan            bank-rel:requires    bank:CreditCheck .
+bank:PILoan            bank-rel:requires    bank:KYC .
+bank:PolicyDocument    bank-rel:governs     bank:LoanApplication .
+bank:LoanApplication   bank-rel:triggers    bank:CreditCheck .
+
+
+# ==========================================================================
+# END OF DRAFT v0.1
+# ==========================================================================
+# TODO (next iterations):
+# - Add more level 3 terms once Databricks metadata is available
+# - Expand FIBO bridging (currently 5 bridges, target 15-20)
+# - Add skos:note and skos:example where useful
+# - Add dct:source provenance links to policy documents
+# - Validate with SPARQL competency queries
+# - Review with domain expert / data steward
+# ==========================================================================

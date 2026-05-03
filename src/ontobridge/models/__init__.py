@@ -2,6 +2,7 @@ from ontobridge.models.enums import (
     LifecycleStatus,
     MatchType,
     PlacementStatus,
+    RelationStatus,
     SourceType,
     Tier,
 )
@@ -13,7 +14,7 @@ from ontobridge.models.enrichment import (
     EnrichedTerm,
     MatchResult,
     PolicyContext,
-    RelationTriple,
+    SemanticRelation,
     SiblingConflict,
     TaxonomyPlacement,
 )
@@ -33,7 +34,8 @@ __all__ = [
     "PlacementStatus",
     "PolicyContext",
     "PublishedTerm",
-    "RelationTriple",
+    "RelationStatus",
+    "SemanticRelation",
     "SiblingConflict",
     "SourceRef",
     "SourceType",

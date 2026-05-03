@@ -7,7 +7,6 @@ import pytest
 from rdflib import Graph
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = PROJECT_ROOT.parent
 SRC_ROOT = PROJECT_ROOT / "src"
 
 if str(SRC_ROOT) not in sys.path:
@@ -15,7 +14,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from ontobridge.agents.governance.ontology import OntologyIndex  # noqa: E402
 
-ONTOLOGY_PATH = REPO_ROOT / "ontology" / "ontobridge_ontology_v0.1.ttl"
+ONTOLOGY_PATH = PROJECT_ROOT / "ontology" / "ontobridge_ontology_v0.1.ttl"
 
 
 @pytest.fixture(scope="session")

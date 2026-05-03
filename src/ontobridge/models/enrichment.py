@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from ontobridge.models.enums import MatchType, PlacementStatus
+from ontobridge.models.enums import MatchType, PlacementStatus, RelationStatus
 from ontobridge.models.fibo import FIBOMatch
 from ontobridge.models.source import HarvestRecord
 
@@ -109,17 +109,30 @@ class BusinessRule:
 
 
 @dataclass
-class RelationTriple:
+class SemanticRelation:
     subject_uri: str
+    predicate_uri: str | None
+    object_label: str
+    inverse_predicate_uri: str | None
     verb: str
-    object_uri: str
-    inverse_verb: str
+    confidence: float = 1.0
+    status: RelationStatus = RelationStatus.RESOLVED
 
     def __post_init__(self) -> None:
-        for name in ("subject_uri", "verb", "object_uri", "inverse_verb"):
-            value = getattr(self, name)
-            if not value or not str(value).strip():
-                raise ValueError(f"RelationTriple.{name} must be a non-empty string")
+        if not self.subject_uri or not self.subject_uri.strip():
+            raise ValueError("SemanticRelation.subject_uri must be non-empty")
+        if not self.object_label or not self.object_label.strip():
+            raise ValueError("SemanticRelation.object_label must be non-empty")
+        if not self.verb or not self.verb.strip():
+            raise ValueError("SemanticRelation.verb must be non-empty")
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError("SemanticRelation.confidence must be in [0.0, 1.0]")
+        if self.status is RelationStatus.RESOLVED:
+            if not self.predicate_uri or not self.inverse_predicate_uri:
+                raise ValueError(
+                    "SemanticRelation(status=RESOLVED) requires both predicate_uri and "
+                    "inverse_predicate_uri"
+                )
 
 
 @dataclass
@@ -131,7 +144,7 @@ class EnrichedTerm:
     taxonomy_placement: TaxonomyPlacement | None = None
     definition: str | None = None
     business_rules: list[BusinessRule] = field(default_factory=list)
-    relations: list[RelationTriple] = field(default_factory=list)
+    relations: list[SemanticRelation] = field(default_factory=list)
     fibo_match: FIBOMatch | None = None
     governance_result: "GovResult | None" = None
 
