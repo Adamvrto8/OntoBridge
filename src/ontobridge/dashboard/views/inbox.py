@@ -73,5 +73,5 @@ def render_inbox(ctx: DashboardContext) -> None:
         cols[3].write(term.approved_by or "—")
         if cols[4].button("Open", key=f"open_{term.term_uri}"):
             st.session_state["selected_term_uri"] = term.term_uri
-            st.session_state["nav"] = "Term Detail"
+            st.session_state["_nav_pending"] = "Term Detail"
             st.rerun()

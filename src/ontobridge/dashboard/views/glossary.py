@@ -31,7 +31,7 @@ def render_glossary(ctx: DashboardContext) -> None:
             cols[0].markdown(f"### {enriched.preferred_label}")
             if cols[1].button("Open", key=f"glossary_open_{term.term_uri}"):
                 st.session_state["selected_term_uri"] = term.term_uri
-                st.session_state["nav"] = "Term Detail"
+                st.session_state["_nav_pending"] = "Term Detail"
                 st.rerun()
             if enriched.definition:
                 st.write(enriched.definition)

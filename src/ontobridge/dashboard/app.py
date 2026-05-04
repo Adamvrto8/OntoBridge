@@ -46,6 +46,10 @@ def main(config: DashboardConfig | None = None) -> None:
     publisher = _load_publisher(ontology)
     ctx = DashboardContext(publisher=publisher, ontology=ontology, config=cfg)
 
+    # Apply any pending navigation set by a view before the radio widget reads state.
+    if "_nav_pending" in st.session_state:
+        st.session_state["nav"] = st.session_state.pop("_nav_pending")
+
     with st.sidebar:
         st.title("OntoBridge")
         st.caption("Steward Dashboard")
