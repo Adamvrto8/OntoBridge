@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import streamlit as st
 
+from ontobridge.audit.models import AuditEntry
 from ontobridge.dashboard.context import DashboardContext
 from ontobridge.models import LifecycleStatus, RelationStatus
 from ontobridge.models.enums import PlacementStatus
@@ -180,7 +181,19 @@ def _attempt_transition(ctx: DashboardContext, term, target: LifecycleStatus) ->
     try:
         if target is LifecycleStatus.PUBLISHED:
             raise ValueError("Use Approve to publish.")
+        previous = term.lifecycle_status
         ctx.publisher.transition_status(term.term_uri, target)
+        action = "rejected" if target is LifecycleStatus.CANDIDATE else "sent_to_draft"
+        ctx.audit_log.record(
+            AuditEntry(
+                term_uri=term.term_uri,
+                term_label=term.enriched_term.preferred_label or term.term_uri,
+                action=action,
+                actor=term.approved_by or "steward",
+                previous_status=previous,
+                new_status=target,
+            )
+        )
         st.success(f"Transitioned to {target.value}.")
         st.rerun()
     except ValueError as exc:
@@ -190,6 +203,7 @@ def _attempt_transition(ctx: DashboardContext, term, target: LifecycleStatus) ->
 def _attempt_approve(ctx: DashboardContext, term, approver: str) -> None:
     try:
         current = ctx.publisher.get_term(term.term_uri)
+        previous = current.lifecycle_status
         # PUBLISHED requires approved_by; persist it before transitioning.
         if current.lifecycle_status is LifecycleStatus.CANDIDATE:
             ctx.publisher.transition_status(term.term_uri, LifecycleStatus.REVIEW)
@@ -199,6 +213,16 @@ def _attempt_approve(ctx: DashboardContext, term, approver: str) -> None:
             replace(current, approved_by=approver),
         )
         ctx.publisher.transition_status(term.term_uri, LifecycleStatus.PUBLISHED)
+        ctx.audit_log.record(
+            AuditEntry(
+                term_uri=term.term_uri,
+                term_label=term.enriched_term.preferred_label or term.term_uri,
+                action="approved",
+                actor=approver,
+                previous_status=previous,
+                new_status=LifecycleStatus.PUBLISHED,
+            )
+        )
         st.success(f"Approved by {approver} — now PUBLISHED.")
         st.rerun()
     except ValueError as exc:
