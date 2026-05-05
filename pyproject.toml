@@ -17,6 +17,7 @@ dev = [
 ]
 dashboard = [
     "streamlit>=1.28",
+    "pyvis>=0.3",
 ]
 embeddings = [
     "sentence-transformers>=2.2",

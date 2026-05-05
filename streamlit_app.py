@@ -9,13 +9,19 @@ Storage modes
 -------------
 Demo (default) — in-memory publisher, seeded on every restart:
 
-    streamlit run streamlit_app.py
+    python -m streamlit run streamlit_app.py
 
 Persistent — SQLite publisher, data survives restarts:
 
-    streamlit run streamlit_app.py -- --db ontobridge.db
+    python -m streamlit run streamlit_app.py -- --db ontobridge.db
 
-Pass any filename; the file is created on first launch.
+Miro board embed:
+
+    python -m streamlit run streamlit_app.py -- --miro "https://miro.com/app/live-embed/YOUR_BOARD_ID/"
+
+Both flags can be combined:
+
+    python -m streamlit run streamlit_app.py -- --db ontobridge.db --miro "https://miro.com/app/live-embed/YOUR_BOARD_ID/"
 """
 from __future__ import annotations
 
@@ -32,7 +38,11 @@ from ontobridge.dashboard.config import DashboardConfig
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--db", default=None, help="Path to SQLite database file")
+parser.add_argument("--miro", default=None, help="Miro board live-embed URL")
 args, _ = parser.parse_known_args()
 
-cfg = DashboardConfig(db_path=Path(args.db) if args.db else None)
+cfg = DashboardConfig(
+    db_path=Path(args.db) if args.db else None,
+    **( {"miro_board_url": args.miro} if args.miro else {} ),
+)
 main(cfg)

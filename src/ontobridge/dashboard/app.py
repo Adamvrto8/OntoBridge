@@ -8,6 +8,7 @@ from ontobridge.dashboard.seed import build_sample_publisher, load_ontology
 from ontobridge.dashboard.views import (
     render_detail,
     render_glossary,
+    render_graph,
     render_inbox,
     render_miro,
     render_stats,
@@ -18,6 +19,7 @@ _PAGES = {
     "Term Detail": render_detail,
     "Glossary Browser": render_glossary,
     "Pipeline Stats": render_stats,
+    "Knowledge Graph": render_graph,
     "Miro Board": render_miro,
 }
 

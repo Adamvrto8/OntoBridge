@@ -14,7 +14,12 @@ _DEFAULT_ONTOLOGY = (
 @dataclass(frozen=True)
 class DashboardConfig:
     ontology_path: Path = _DEFAULT_ONTOLOGY
-    miro_board_url: str | None = None
+    miro_board_url: str | None = (
+        "https://miro.com/app/live-embed/uXjVHYUAwCA=/"
+        "?embedMode=view_only_without_ui"
+        "&moveToViewport=-512,-253,1024,504"
+        "&embedId=742433091738"
+    )
     page_title: str = "OntoBridge — Steward Dashboard"
     page_icon: str = "🏦"
     db_path: Path | None = None
