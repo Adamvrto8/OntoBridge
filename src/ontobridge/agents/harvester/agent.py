@@ -118,14 +118,16 @@ class HarvesterAgent:
     ) -> list[EnrichedTerm]:
         """Harvest and lift records into EnrichedTerm objects ready for PipelineRunner.
 
-        Each returned term has ``candidate_labels`` pre-populated from the
-        ``candidate_label`` metadata key written by the extractor.
+        Each returned term has ``candidate_labels`` and ``definition``
+        pre-populated so it can be passed directly to ``PipelineRunner.run()``.
         """
         terms: list[EnrichedTerm] = []
         for record in self.harvest(
             source, source_system=source_system, document_id=document_id
         ):
             term = EnrichedTerm.from_harvest(record)
+            # record.text is the extracted definition sentence
+            term.definition = record.text
             label = record.metadata.get("candidate_label", "")
             if label:
                 term.candidate_labels = [
