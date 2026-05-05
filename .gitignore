@@ -30,3 +30,8 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SQLite databases (local publisher storage — not committed)
+*.db
+*.db-shm
+*.db-wal
