@@ -95,3 +95,50 @@ def test_default_dashboard_config_points_at_v0_1_ontology():
     )
     assert cfg.ontology_path.name == "ontobridge_ontology_v0.1.ttl"
     assert cfg.miro_board_url is None  # placeholder by default
+
+
+def test_default_dashboard_config_db_path_is_none():
+    assert DashboardConfig().db_path is None
+
+
+def test_dashboard_config_accepts_db_path(tmp_path):
+    db = tmp_path / "test.db"
+    cfg = DashboardConfig(db_path=db)
+    assert cfg.db_path == db
+
+
+def test_sqlite_publisher_seeded_on_first_launch(base_ontology, tmp_path):
+    from ontobridge.publisher import SqlitePublisher
+    from ontobridge.dashboard.seed import build_sample_publisher
+
+    db = tmp_path / "dashboard.db"
+    pub = SqlitePublisher(db)
+    assert pub.count() == 0
+
+    # Simulate what app.py does on first launch
+    seeded = build_sample_publisher(base_ontology)
+    for term in seeded.search_terms(""):
+        pub.create_term(term)
+
+    assert pub.count() >= 5
+
+
+def test_sqlite_publisher_not_reseeded_on_second_launch(base_ontology, tmp_path):
+    from ontobridge.publisher import SqlitePublisher
+    from ontobridge.dashboard.seed import build_sample_publisher
+
+    db = tmp_path / "dashboard.db"
+
+    # First launch — seed
+    pub1 = SqlitePublisher(db)
+    seeded = build_sample_publisher(base_ontology)
+    for term in seeded.search_terms(""):
+        pub1.create_term(term)
+    count_after_seed = pub1.count()
+
+    # Second launch — should not seed again (db_path is not None and count > 0)
+    pub2 = SqlitePublisher(db)
+    if pub2.count() == 0:
+        for term in seeded.search_terms(""):
+            pub2.create_term(term)
+    assert pub2.count() == count_after_seed  # no duplicates added

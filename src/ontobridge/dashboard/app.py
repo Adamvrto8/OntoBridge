@@ -28,10 +28,22 @@ def _load_ontology(path_str: str):
 
 
 @st.cache_resource
-def _load_publisher(_ontology):
-    # Underscore-prefixed args are excluded from cache hashing — we want a
-    # single shared publisher per session, mutated in place by the views.
+def _load_in_memory_publisher(_ontology):
+    # Underscore prefix excludes _ontology from cache hashing.
     return build_sample_publisher(_ontology)
+
+
+@st.cache_resource
+def _load_sqlite_publisher(db_path_str: str, _ontology):
+    # Underscore prefix excludes _ontology from cache hashing.
+    from ontobridge.publisher import SqlitePublisher
+    pub = SqlitePublisher(db_path_str)
+    if pub.count() == 0:
+        # First launch: seed with sample terms so the dashboard is not empty.
+        seeded = build_sample_publisher(_ontology)
+        for term in seeded.search_terms(""):
+            pub.create_term(term)
+    return pub
 
 
 def main(config: DashboardConfig | None = None) -> None:
@@ -43,7 +55,14 @@ def main(config: DashboardConfig | None = None) -> None:
     )
 
     ontology = _load_ontology(str(cfg.ontology_path))
-    publisher = _load_publisher(ontology)
+
+    if cfg.db_path is not None:
+        publisher = _load_sqlite_publisher(str(cfg.db_path), ontology)
+        persistent = True
+    else:
+        publisher = _load_in_memory_publisher(ontology)
+        persistent = False
+
     ctx = DashboardContext(publisher=publisher, ontology=ontology, config=cfg)
 
     # Apply any pending navigation set by a view before the radio widget reads state.
@@ -62,10 +81,16 @@ def main(config: DashboardConfig | None = None) -> None:
             ),
         )
         st.divider()
-        if st.button("Reset publisher (re-seed)"):
-            _load_publisher.clear()  # type: ignore[attr-defined]
-            st.session_state.pop("selected_term_uri", None)
-            st.rerun()
+
+        if persistent:
+            st.caption(f"Storage: SQLite — `{cfg.db_path.name}`")  # type: ignore[union-attr]
+        else:
+            st.caption("Storage: in-memory (demo)")
+            if st.button("Reset publisher (re-seed)"):
+                _load_in_memory_publisher.clear()  # type: ignore[attr-defined]
+                st.session_state.pop("selected_term_uri", None)
+                st.rerun()
+
         st.caption(f"Ontology: `{cfg.ontology_path.name}`")
 
     _PAGES[nav](ctx)
