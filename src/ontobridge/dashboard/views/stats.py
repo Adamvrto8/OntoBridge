@@ -5,6 +5,7 @@ from collections import Counter
 import streamlit as st
 
 from ontobridge.dashboard.context import DashboardContext
+from ontobridge.export import export_all_statuses, export_turtle
 from ontobridge.models import LifecycleStatus
 
 
@@ -64,3 +65,29 @@ def render_stats(ctx: DashboardContext) -> None:
     )
     if action_counts:
         st.bar_chart(dict(action_counts))
+
+    st.divider()
+
+    # Turtle export
+    st.subheader("Export glossary")
+    col_exp, col_all = st.columns(2)
+
+    with col_exp:
+        published_ttl = export_turtle(ctx.publisher)
+        st.download_button(
+            label="Download published terms (.ttl)",
+            data=published_ttl,
+            file_name="ontobridge_published.ttl",
+            mime="text/turtle",
+            help="SKOS/OWL Turtle file containing all PUBLISHED terms.",
+        )
+
+    with col_all:
+        full_ttl = export_all_statuses(ctx.publisher)
+        st.download_button(
+            label="Download full export (.ttl)",
+            data=full_ttl,
+            file_name="ontobridge_full_export.ttl",
+            mime="text/turtle",
+            help="All terms regardless of lifecycle status — for audits and demos.",
+        )
