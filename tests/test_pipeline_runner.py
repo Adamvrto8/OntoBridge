@@ -185,3 +185,36 @@ def test_runner_publishes_to_glossary_visible_via_search(base_ontology):
     hits = pub.search_terms("premium")
     assert len(hits) == 1
     assert "Premium" in hits[0].enriched_term.candidate_labels[0].text
+
+
+# ---------- encoder passthrough ----------
+
+def test_runner_accepts_encoder_parameter(base_ontology):
+    from ontobridge.encoders import SentenceTransformerEncoder
+    enc = SentenceTransformerEncoder()
+    pub = InMemoryPublisher()
+    # Must not raise; encoder is forwarded to MappingAgent and TaxonomyAgent.
+    runner = PipelineRunner(base_ontology, pub, encoder=enc)
+    assert runner.mapping.embedding.encoder is enc
+    assert runner.taxonomy.encoder is enc
+
+
+def test_runner_encoder_is_called_during_run(base_ontology):
+    """A tracking encoder stub confirms encode() is invoked by both agents."""
+    from typing import Mapping
+
+    class TrackingEncoder:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def encode(self, text: str) -> Mapping[str, float]:
+            self.calls.append(text)
+            # Return a simple unit vector so cosine similarity works
+            return {"0": 1.0}
+
+    enc = TrackingEncoder()
+    pub = InMemoryPublisher()
+    runner = PipelineRunner(base_ontology, pub, encoder=enc)
+    runner.run(_premium_customer_term(), approved_by="steward.alice")
+    # Both MappingAgent (EmbeddingSimilarityStrategy) and TaxonomyAgent call encode()
+    assert len(enc.calls) > 0

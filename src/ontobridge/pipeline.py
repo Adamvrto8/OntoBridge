@@ -4,6 +4,7 @@ from ontobridge.agents.governance import Candidate, GovernanceAgent, PolicyRef
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.mapping import MappingAgent, from_ontology
 from ontobridge.agents.mapping.glossary import GlossarySource
+from ontobridge.agents.mapping.strategies import Encoder
 from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
 from ontobridge.agents.writer import WriterAgent
@@ -13,13 +14,24 @@ from ontobridge.publisher.base import TermPublisher
 
 
 class PipelineRunner:
-    """Chains the four currently-built agents:
-    Mapping → Taxonomy → Relations → Governance → Writer.
+    """Chains Mapping → Taxonomy → Relations → Governance → Writer.
 
-    The runner skips NER, Policy Linker, and Definition. Callers must supply an
-    EnrichedTerm with `candidate_labels` and `definition` already populated;
-    `policy_context` and `fibo_match` are optional but flow through the agents
-    when present.
+    Callers must supply an EnrichedTerm with ``candidate_labels`` and
+    ``definition`` already populated — use ``HarvesterAgent.harvest_terms()``
+    to produce these from a document, or populate them manually.
+
+    ``policy_context`` and ``fibo_match`` are optional and flow through when
+    present.
+
+    Args:
+        ontology: The OntologyIndex used by all agents.
+        publisher: Where approved terms are persisted.
+        glossary: Override the default ontology-derived glossary used by
+            MappingAgent.  Useful when you want to match against a richer
+            or different term set.
+        encoder: Optional dense encoder (e.g. SentenceTransformerEncoder)
+            shared by MappingAgent and TaxonomyAgent.  Defaults to the
+            TokenOverlapEncoder fallback when omitted.
     """
 
     def __init__(
@@ -27,14 +39,15 @@ class PipelineRunner:
         ontology: OntologyIndex,
         publisher: TermPublisher,
         glossary: GlossarySource | None = None,
+        encoder: Encoder | None = None,
     ):
         self.ontology = ontology
         self.publisher = publisher
         self.glossary: GlossarySource = (
             glossary if glossary is not None else from_ontology(ontology)
         )
-        self.mapping = MappingAgent(self.glossary)
-        self.taxonomy = TaxonomyAgent(ontology)
+        self.mapping = MappingAgent(self.glossary, encoder=encoder)
+        self.taxonomy = TaxonomyAgent(ontology, encoder=encoder)
         self.relations = RelationsAgent(ontology)
         self.governance = GovernanceAgent(ontology)
         self.writer = WriterAgent(publisher, ontology=ontology)
