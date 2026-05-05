@@ -10,6 +10,7 @@ from ontobridge.agents.relations.lexicon import (
     LexiconLookup,
     LookupDirection,
 )
+from ontobridge.agents.relations.spacy_extractor import SpaCyExtractor
 
 __all__ = [
     "DEFAULT_VERB_VOCAB",
@@ -18,6 +19,7 @@ __all__ = [
     "LookupDirection",
     "RegexHeuristicExtractor",
     "RelationsAgent",
+    "SpaCyExtractor",
     "SVOExtractor",
     "SVOTriple",
 ]
