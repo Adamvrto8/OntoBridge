@@ -10,6 +10,7 @@ from ontobridge.agents.harvester.readers.docx import DocxReader
 from ontobridge.agents.harvester.readers.pdf import PdfReader
 from ontobridge.agents.harvester.readers.text import PlainTextReader
 from ontobridge.models import CandidateLabel, EnrichedTerm
+from ontobridge.models.enrichment import PolicyContext
 from ontobridge.models.enums import SourceType, Tier
 from ontobridge.models.source import HarvestRecord, SourceRef
 
@@ -27,6 +28,20 @@ _SOURCE_TIER: dict[SourceType, Tier] = {
 
 def _default_readers() -> list[DocumentReader]:
     return [PlainTextReader(), PdfReader(), DocxReader(), CatalogReader()]
+
+
+def _policy_context_from_record(record: HarvestRecord) -> PolicyContext:
+    """Build a PolicyContext from a HarvestRecord's source reference.
+
+    Uses document_id when available, falls back to source_system so that
+    PolicyContext.document_ref is always non-empty (as required by its
+    validator) and governance rule R10 does not fire on harvested terms.
+    """
+    return PolicyContext(
+        paragraph=record.text,
+        document_ref=record.source_ref.document_id or record.source_ref.source_system,
+        section=record.source_ref.section,
+    )
 
 
 class HarvesterAgent:
@@ -126,13 +141,13 @@ class HarvesterAgent:
             source, source_system=source_system, document_id=document_id
         ):
             term = EnrichedTerm.from_harvest(record)
-            # record.text is the extracted definition sentence
             term.definition = record.text
             label = record.metadata.get("candidate_label", "")
             if label:
                 term.candidate_labels = [
                     CandidateLabel(text=label, confidence=record.confidence)
                 ]
+            term.policy_context = [_policy_context_from_record(record)]
             terms.append(term)
         return terms
 

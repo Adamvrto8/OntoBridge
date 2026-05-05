@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from ontobridge.agents.governance.ontology import OntologyIndex
-from ontobridge.agents.harvester.agent import HarvesterAgent
+from ontobridge.agents.harvester.agent import HarvesterAgent, _policy_context_from_record
 from ontobridge.models.enrichment import EnrichedTerm
 from ontobridge.models.published import PublishedTerm
 from ontobridge.pipeline import PipelineRunner
@@ -163,6 +163,7 @@ class BatchPipelineRunner:
                     seen_ids.add(record.record_id)
                     term = EnrichedTerm.from_harvest(record)
                     term.definition = record.text
+                    term.policy_context = [_policy_context_from_record(record)]
                     label = record.metadata.get("candidate_label", "")
                     if label:
                         from ontobridge.models import CandidateLabel

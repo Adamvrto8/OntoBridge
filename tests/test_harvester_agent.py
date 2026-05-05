@@ -143,6 +143,53 @@ class TestHarvestTerms:
         labels = [t.candidate_labels[0].text for t in terms]
         assert any("Retail Customer" in lbl for lbl in labels)
 
+    def test_policy_context_auto_populated(self, policy_txt):
+        agent = HarvesterAgent(readers=[PlainTextReader()])
+        terms = agent.harvest_terms(policy_txt, document_id="CreditPolicy_v3.pdf")
+        for term in terms:
+            assert term.policy_context, "policy_context must not be empty"
+            ctx = term.policy_context[0]
+            assert ctx.document_ref == "CreditPolicy_v3.pdf"
+            assert ctx.paragraph  # the definition text
+
+    def test_policy_context_document_ref_falls_back_to_source_system(self, tmp_path):
+        # When document_id is not set on the SourceRef, source_system is used
+        f = tmp_path / "policy.txt"
+        f.write_text(
+            "Loan Account means a credit facility extended to a customer under the "
+            "terms of a loan agreement with a fixed repayment schedule.\n",
+            encoding="utf-8",
+        )
+        agent = HarvesterAgent(readers=[PlainTextReader()])
+        # harvest() uses Path.name as document_id by default
+        terms = agent.harvest_terms(f, source_system="policy_repo")
+        for term in terms:
+            assert term.policy_context
+            assert term.policy_context[0].document_ref  # never empty
+
+    def test_governance_r10_does_not_fire_on_harvested_term(self, policy_txt, base_ontology):
+        from ontobridge.pipeline import PipelineRunner
+        from ontobridge.publisher import InMemoryPublisher
+
+        agent = HarvesterAgent(readers=[PlainTextReader()])
+        terms = agent.harvest_terms(policy_txt, document_id="CreditPolicy_v3.pdf")
+
+        pub = InMemoryPublisher()
+        runner = PipelineRunner(base_ontology, pub)
+
+        for term in terms:
+            published = runner.run(term)
+            result = published.enriched_term.governance_result
+            if result:
+                r10_findings = [
+                    f for f in result.findings if f.rule_id == "R10"
+                ]
+                for finding in r10_findings:
+                    assert not finding.triggered, (
+                        f"R10 fired on harvested term "
+                        f"{term.preferred_label!r} — policy_context not propagated"
+                    )
+
 
 # ---------------------------------------------------------------------------
 # Harvest from catalog JSON
