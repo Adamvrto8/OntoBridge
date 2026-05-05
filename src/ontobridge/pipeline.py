@@ -10,6 +10,7 @@ from ontobridge.agents.taxonomy import TaxonomyAgent
 from ontobridge.agents.writer import WriterAgent
 from ontobridge.models.enrichment import EnrichedTerm
 from ontobridge.models.published import PublishedTerm
+from ontobridge.pipeline_config import PipelineConfig
 from ontobridge.publisher.base import TermPublisher
 
 
@@ -31,7 +32,10 @@ class PipelineRunner:
             or different term set.
         encoder: Optional dense encoder (e.g. SentenceTransformerEncoder)
             shared by MappingAgent and TaxonomyAgent.  Defaults to the
-            TokenOverlapEncoder fallback when omitted.
+            TokenOverlapEncoder fallback when omitted.  Ignored when
+            ``config`` is provided (config.encoder takes precedence).
+        config: Optional PipelineConfig with all thresholds and namespaces.
+            When supplied, individual keyword arguments are ignored.
     """
 
     def __init__(
@@ -40,17 +44,36 @@ class PipelineRunner:
         publisher: TermPublisher,
         glossary: GlossarySource | None = None,
         encoder: Encoder | None = None,
+        config: PipelineConfig | None = None,
     ):
+        cfg = config or PipelineConfig(encoder=encoder)
+
         self.ontology = ontology
         self.publisher = publisher
+        self.config = cfg
         self.glossary: GlossarySource = (
             glossary if glossary is not None else from_ontology(ontology)
         )
-        self.mapping = MappingAgent(self.glossary, encoder=encoder)
-        self.taxonomy = TaxonomyAgent(ontology, encoder=encoder)
+        self.mapping = MappingAgent(
+            self.glossary,
+            fuzzy_threshold=cfg.fuzzy_threshold,
+            embedding_threshold=cfg.embedding_threshold,
+            encoder=cfg.encoder,
+        )
+        self.taxonomy = TaxonomyAgent(
+            ontology,
+            encoder=cfg.encoder,
+            placement_threshold=cfg.placement_threshold,
+            sibling_conflict_threshold=cfg.sibling_conflict_threshold,
+        )
         self.relations = RelationsAgent(ontology)
         self.governance = GovernanceAgent(ontology)
-        self.writer = WriterAgent(publisher, ontology=ontology)
+        self.writer = WriterAgent(
+            publisher,
+            ontology=ontology,
+            bank_namespace=cfg.bank_namespace,
+            rel_namespace=cfg.rel_namespace,
+        )
 
     def run(
         self,
