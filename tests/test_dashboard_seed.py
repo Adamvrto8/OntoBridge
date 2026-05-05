@@ -94,7 +94,7 @@ def test_default_dashboard_config_points_at_v0_1_ontology():
         f"{cfg.ontology_path}"
     )
     assert cfg.ontology_path.name == "ontobridge_ontology_v0.1.ttl"
-    assert cfg.miro_board_url is None  # placeholder by default
+    assert cfg.miro_board_url is not None  # hardcoded embed URL
 
 
 def test_default_dashboard_config_db_path_is_none():
