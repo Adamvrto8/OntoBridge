@@ -6,6 +6,8 @@ from ontobridge.dashboard.config import DashboardConfig
 from ontobridge.audit import AuditLog, InMemoryAuditLog
 from ontobridge.dashboard.context import DashboardContext
 from ontobridge.dashboard.seed import build_sample_publisher, load_ontology
+from ontobridge.models.enums import LifecycleStatus
+from ontobridge.publisher.base import TermPublisher
 from ontobridge.dashboard.views import (
     render_audit,
     render_detail,
@@ -62,6 +64,22 @@ def _load_sqlite_audit(audit_path_str: str) -> AuditLog:
     return SqliteAuditLog(audit_path_str)
 
 
+def sidebar_counts(publisher: TermPublisher, audit_log: AuditLog) -> dict[str, int]:
+    """Return a {page_name: count} dict for pages where a badge is meaningful."""
+    terms = publisher.search_terms("")
+    review = sum(1 for t in terms if t.lifecycle_status is LifecycleStatus.REVIEW)
+    published = sum(1 for t in terms if t.lifecycle_status is LifecycleStatus.PUBLISHED)
+    audit = audit_log.count()
+    counts: dict[str, int] = {}
+    if review:
+        counts["Governance Inbox"] = review
+    if published:
+        counts["Glossary Browser"] = published
+    if audit:
+        counts["Audit Log"] = audit
+    return counts
+
+
 def main(config: DashboardConfig | None = None) -> None:
     cfg = config or DashboardConfig()
     st.set_page_config(
@@ -90,6 +108,12 @@ def main(config: DashboardConfig | None = None) -> None:
     if "_nav_pending" in st.session_state:
         st.session_state["nav"] = st.session_state.pop("_nav_pending")
 
+    counts = sidebar_counts(publisher, audit_log)
+
+    def _label(page: str) -> str:
+        n = counts.get(page, 0)
+        return f"{page}  ({n})" if n else page
+
     with st.sidebar:
         st.title("OntoBridge")
         st.caption("Steward Dashboard")
@@ -100,6 +124,7 @@ def main(config: DashboardConfig | None = None) -> None:
             index=list(_PAGES.keys()).index(
                 st.session_state.get("nav", "Governance Inbox")
             ),
+            format_func=_label,
         )
         st.divider()
 
