@@ -14,7 +14,10 @@ _ACTION_ICON = {
 
 def render_audit(ctx: DashboardContext) -> None:
     st.title("Audit Log")
-    st.caption("Every approve, reject, and status transition recorded by stewards.")
+    col_title, col_btn = st.columns([6, 1])
+    col_title.caption("Every approve, reject, and status transition recorded by stewards.")
+    if col_btn.button("Refresh", key="audit_refresh"):
+        st.rerun()
 
     total = ctx.audit_log.count()
 

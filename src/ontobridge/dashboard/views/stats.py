@@ -11,7 +11,10 @@ from ontobridge.models import LifecycleStatus
 
 def render_stats(ctx: DashboardContext) -> None:
     st.title("Pipeline Stats")
-    st.caption("Snapshot of the current publisher state.")
+    col_title, col_btn = st.columns([6, 1])
+    col_title.caption("Snapshot of the current publisher state.")
+    if col_btn.button("Refresh", key="stats_refresh"):
+        st.rerun()
 
     terms = ctx.publisher.search_terms("")
     if not terms:
