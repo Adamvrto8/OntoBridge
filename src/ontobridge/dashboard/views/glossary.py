@@ -8,7 +8,7 @@ from ontobridge.models import LifecycleStatus
 
 def render_glossary(ctx: DashboardContext) -> None:
     st.title("Glossary Browser")
-    st.caption("Published terms only — what consumers see in Dawiso.")
+    st.caption("Published terms only — the approved business glossary.")
 
     query = st.text_input("Search", placeholder="Filter by label or definition...")
     hits = ctx.publisher.search_terms(query) if query else ctx.publisher.search_terms("")

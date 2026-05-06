@@ -52,6 +52,11 @@ def _load_sqlite_publisher(db_path_str: str, _ontology):
 
 
 @st.cache_resource
+def _load_in_memory_audit() -> AuditLog:
+    return InMemoryAuditLog()
+
+
+@st.cache_resource
 def _load_sqlite_audit(audit_path_str: str) -> AuditLog:
     from ontobridge.audit import SqliteAuditLog
     return SqliteAuditLog(audit_path_str)
@@ -74,7 +79,7 @@ def main(config: DashboardConfig | None = None) -> None:
         persistent = True
     else:
         publisher = _load_in_memory_publisher(ontology)
-        audit_log = InMemoryAuditLog()
+        audit_log = _load_in_memory_audit()
         persistent = False
 
     ctx = DashboardContext(
