@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from ontobridge.agents.governance.ontology import OntologyIndex
-from ontobridge.agents.harvester.agent import HarvesterAgent, _policy_context_from_record
+from ontobridge.agents.harvester.agent import HarvesterAgent
 from ontobridge.models.enrichment import EnrichedTerm
 from ontobridge.models.published import PublishedTerm
 from ontobridge.pipeline import PipelineRunner
@@ -158,18 +158,12 @@ class BatchPipelineRunner:
         all_terms: list[EnrichedTerm] = []
 
         for source in sources:
-            for record in self._harvester.harvest(source, source_system=source_system):
-                if record.record_id not in seen_ids:
-                    seen_ids.add(record.record_id)
-                    term = EnrichedTerm.from_harvest(record)
-                    term.definition = record.text
-                    term.policy_context = [_policy_context_from_record(record)]
-                    label = record.metadata.get("candidate_label", "")
-                    if label:
-                        from ontobridge.models import CandidateLabel
-                        term.candidate_labels = [
-                            CandidateLabel(text=label, confidence=record.confidence)
-                        ]
+            for term in self._harvester.harvest_terms(
+                source, source_system=source_system
+            ):
+                record_id = term.harvest_record.record_id
+                if record_id not in seen_ids:
+                    seen_ids.add(record_id)
                     all_terms.append(term)
 
         return self.run_terms(all_terms, approved_by=approved_by)

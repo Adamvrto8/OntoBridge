@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
+from ontobridge.agents.definition.agent import DefinitionAgent
 from ontobridge.agents.harvester.extractors.pattern import PatternTermExtractor
 from ontobridge.agents.harvester.protocols import DocumentReader, TermExtractor
 from ontobridge.agents.harvester.readers.catalog import CatalogReader
@@ -72,9 +73,11 @@ class HarvesterAgent:
         self,
         readers: Sequence[DocumentReader] | None = None,
         extractor: TermExtractor | None = None,
+        definition_agent: DefinitionAgent | None = None,
     ) -> None:
         self.readers: list[DocumentReader] = list(readers) if readers else _default_readers()
         self.extractor: TermExtractor = extractor or PatternTermExtractor()
+        self.definition: DefinitionAgent = definition_agent or DefinitionAgent()
 
     # ------------------------------------------------------------------
     # Primary API
@@ -141,12 +144,12 @@ class HarvesterAgent:
             source, source_system=source_system, document_id=document_id
         ):
             term = EnrichedTerm.from_harvest(record)
-            term.definition = record.text
             label = record.metadata.get("candidate_label", "")
             if label:
                 term.candidate_labels = [
                     CandidateLabel(text=label, confidence=record.confidence)
                 ]
+            term.definition = self.definition.extract(record, label=label or None)
             term.policy_context = [_policy_context_from_record(record)]
             terms.append(term)
         return terms
