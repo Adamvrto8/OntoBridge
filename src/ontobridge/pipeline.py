@@ -5,6 +5,7 @@ from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.mapping import MappingAgent, from_ontology
 from ontobridge.agents.mapping.glossary import GlossarySource
 from ontobridge.agents.mapping.strategies import Encoder
+from ontobridge.agents.policy_linker import PolicyLinkerAgent
 from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
 from ontobridge.agents.writer import WriterAgent
@@ -45,12 +46,14 @@ class PipelineRunner:
         glossary: GlossarySource | None = None,
         encoder: Encoder | None = None,
         config: PipelineConfig | None = None,
+        policy_linker: PolicyLinkerAgent | None = None,
     ):
         cfg = config or PipelineConfig(encoder=encoder)
 
         self.ontology = ontology
         self.publisher = publisher
         self.config = cfg
+        self.policy_linker = policy_linker
         self.glossary: GlossarySource = (
             glossary if glossary is not None else from_ontology(ontology)
         )
@@ -83,6 +86,8 @@ class PipelineRunner:
         approved_by: str | None = None,
     ) -> PublishedTerm:
         self._validate_input(term)
+        if self.policy_linker is not None:
+            self.policy_linker.apply(term)
         self.mapping.apply(term)
         self.taxonomy.apply(term)
         self.relations.apply(term)

@@ -6,6 +6,7 @@ from typing import Callable, Sequence
 
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.harvester.agent import HarvesterAgent
+from ontobridge.agents.policy_linker import PolicyLinkerAgent
 from ontobridge.models.enrichment import EnrichedTerm
 from ontobridge.models.published import PublishedTerm
 from ontobridge.pipeline import PipelineRunner
@@ -104,8 +105,9 @@ class BatchPipelineRunner:
         config: PipelineConfig | None = None,
         harvester: HarvesterAgent | None = None,
         on_progress: ProgressCallback | None = None,
+        policy_linker: PolicyLinkerAgent | None = None,
     ) -> None:
-        self._runner = PipelineRunner(ontology, publisher, config=config)
+        self._runner = PipelineRunner(ontology, publisher, config=config, policy_linker=policy_linker)
         self._harvester = harvester or HarvesterAgent()
         self._on_progress = on_progress
 

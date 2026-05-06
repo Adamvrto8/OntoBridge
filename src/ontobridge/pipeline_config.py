@@ -55,6 +55,10 @@ class PipelineConfig:
     # Shared encoder — not part of frozen hash (mutable object), excluded via field
     encoder: Encoder | None = field(default=None, hash=False, compare=False)
 
+    # Policy Linker
+    policy_linker_threshold: float = 0.60
+    policy_linker_top_k: int = 3
+
     # Writer agent namespaces
     bank_namespace: str = "http://ontobridge.dev/ontology/bank/"
     rel_namespace: str = "http://ontobridge.dev/ontology/bank/relations/"
@@ -65,6 +69,7 @@ class PipelineConfig:
             ("embedding_threshold", self.embedding_threshold),
             ("placement_threshold", self.placement_threshold),
             ("sibling_conflict_threshold", self.sibling_conflict_threshold),
+            ("policy_linker_threshold", self.policy_linker_threshold),
         ]:
             if not 0.0 <= val <= 1.0:
                 raise ValueError(f"{name} must be in [0.0, 1.0]; got {val}")

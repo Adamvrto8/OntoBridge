@@ -29,6 +29,13 @@ readers = [
 nlp = [
     "spacy>=3.7",
 ]
+vector = [
+    "chromadb>=0.4",
+]
+llm = [
+    "langchain-ollama>=0.2",
+    "langchain-core>=0.3",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
