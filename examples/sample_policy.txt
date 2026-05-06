@@ -1,0 +1,26 @@
+RETAIL BANKING CREDIT POLICY - SAMPLE EXTRACT
+Version 2.4 | Effective 2025-01-01
+
+1. DEFINITIONS
+
+Mortgage refers to a loan secured by real property in which the borrower pledges the asset as collateral to the lender until the loan is fully repaid.
+
+Loan-to-Value ratio means the financial metric that expresses the ratio of the outstanding loan amount to the appraised market value of the collateral property, used by lenders to assess credit risk before approving a mortgage application.
+
+Collateral is defined as an asset pledged by a borrower to a lender as security against a loan obligation, allowing the lender to seize the asset in the event of default.
+
+Overdraft means a credit facility provided by a bank that allows an account holder to withdraw funds beyond the available account balance up to a pre-agreed limit, subject to interest charges on the overdrawn amount.
+
+Credit score refers to a numerical rating assigned to a borrower based on their credit history, repayment behaviour, and financial profile, used by lenders to evaluate the likelihood of loan repayment.
+
+2. COMPLIANCE
+
+KYC verification process means the mandatory regulatory procedure that requires the bank to verify the identity and risk profile of each customer before establishing a banking relationship or processing high-value transactions.
+
+AML screening refers to the process of monitoring customer transactions and behaviour to detect and report activities that may constitute money laundering or the financing of terrorism, as required by applicable anti-money laundering regulations.
+
+3. PAYMENTS
+
+SEPA transfer means a euro-denominated payment transaction executed within the Single Euro Payments Area, subject to standardised processing times and fee structures established by the European Payments Council.
+
+SWIFT message refers to a standardised financial communication sent through the Society for Worldwide Interbank Financial Telecommunication network to facilitate cross-border payment instructions between correspondent banks.
