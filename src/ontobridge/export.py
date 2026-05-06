@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -7,6 +9,7 @@ from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import DC, OWL, RDF, RDFS, SKOS, XSD
 
 from ontobridge.models.enums import LifecycleStatus
+from ontobridge.models.published import PublishedTerm
 from ontobridge.publisher.base import TermPublisher
 
 _ONTOLOGY_URI = URIRef("http://ontobridge.dev/ontology/glossary/")
@@ -97,6 +100,68 @@ def export_turtle(
         path.write_text(ttl, encoding="utf-8")
 
     return ttl
+
+
+_CSV_COLUMNS = [
+    "label",
+    "definition",
+    "alt_labels",
+    "scheme",
+    "status",
+    "approved_by",
+    "term_uri",
+]
+
+
+def _term_to_csv_row(term: PublishedTerm) -> dict:
+    enriched = term.enriched_term
+    pref = enriched.preferred_label or ""
+    alts = [c.text for c in enriched.candidate_labels if c.text != pref]
+    placement = enriched.taxonomy_placement
+    scheme = ""
+    if placement and placement.scheme_uri:
+        scheme = placement.scheme_uri.rstrip("/").split("/")[-1]
+    return {
+        "label": pref,
+        "definition": enriched.definition or "",
+        "alt_labels": "; ".join(alts),
+        "scheme": scheme,
+        "status": term.lifecycle_status.value,
+        "approved_by": term.approved_by or "",
+        "term_uri": term.term_uri,
+    }
+
+
+def export_glossary_csv(
+    publisher: TermPublisher,
+    *,
+    statuses: set[LifecycleStatus] | None = None,
+) -> str:
+    """Export terms as a UTF-8 CSV string.
+
+    Args:
+        publisher: Source of terms.
+        statuses:  Lifecycle statuses to include.  Defaults to ``{PUBLISHED}``.
+
+    Returns:
+        CSV text (header row + one row per term, sorted by label).
+    """
+    if statuses is None:
+        statuses = {LifecycleStatus.PUBLISHED}
+
+    terms = [
+        t for t in publisher.search_terms("")
+        if t.lifecycle_status in statuses
+    ]
+    terms.sort(key=lambda t: (t.enriched_term.preferred_label or "").lower())
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=_CSV_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    for term in terms:
+        writer.writerow(_term_to_csv_row(term))
+
+    return buf.getvalue()
 
 
 def export_all_statuses(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from ontobridge.dashboard.context import DashboardContext
+from ontobridge.export import export_glossary_csv
 from ontobridge.models import LifecycleStatus
 
 
@@ -22,7 +23,15 @@ def render_glossary(ctx: DashboardContext) -> None:
         return
 
     published.sort(key=lambda t: t.enriched_term.preferred_label or "")
-    st.markdown(f"**{len(published)}** published term(s)")
+
+    col_count, col_dl = st.columns([5, 1])
+    col_count.markdown(f"**{len(published)}** published term(s)")
+    col_dl.download_button(
+        label="Export CSV",
+        data=export_glossary_csv(ctx.publisher),
+        file_name="ontobridge_glossary.csv",
+        mime="text/csv",
+    )
 
     for term in published:
         enriched = term.enriched_term
