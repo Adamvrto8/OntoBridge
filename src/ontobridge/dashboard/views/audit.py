@@ -8,7 +8,7 @@ _ACTION_ICON = {
     "approved": "✅",
     "rejected": "❌",
     "sent_to_draft": "📝",
-    "sent_to_review": "🔍",
+    "sent_to_review": "🔎",
 }
 
 

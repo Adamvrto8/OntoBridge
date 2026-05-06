@@ -155,7 +155,7 @@ def _render_turtle(term) -> None:
 
 def _render_actions(ctx: DashboardContext, term) -> None:
     st.subheader("Actions")
-    cols = st.columns([2, 1, 1, 1])
+    cols = st.columns([2, 1, 1, 1, 1])
     approver_input = cols[0].text_input(
         "Approver name",
         value=term.approved_by or "",
@@ -163,14 +163,17 @@ def _render_actions(ctx: DashboardContext, term) -> None:
         help="Required to approve into PUBLISHED.",
     )
     approve = cols[1].button("Approve", key=f"approve_{term.term_uri}", type="primary")
-    send_draft = cols[2].button("Send to draft", key=f"draft_{term.term_uri}")
-    reject = cols[3].button("Reject", key=f"reject_{term.term_uri}")
+    send_review = cols[2].button("Send to review", key=f"review_{term.term_uri}")
+    send_draft = cols[3].button("Send to draft", key=f"draft_{term.term_uri}")
+    reject = cols[4].button("Reject", key=f"reject_{term.term_uri}")
 
     if approve:
         if not approver_input.strip():
             st.error("Enter an approver name before approving.")
         else:
             _attempt_approve(ctx, term, approver_input.strip())
+    elif send_review:
+        _attempt_transition(ctx, term, LifecycleStatus.REVIEW)
     elif send_draft:
         _attempt_transition(ctx, term, LifecycleStatus.DRAFT)
     elif reject:
@@ -183,7 +186,12 @@ def _attempt_transition(ctx: DashboardContext, term, target: LifecycleStatus) ->
             raise ValueError("Use Approve to publish.")
         previous = term.lifecycle_status
         ctx.publisher.transition_status(term.term_uri, target)
-        action = "rejected" if target is LifecycleStatus.CANDIDATE else "sent_to_draft"
+        _ACTION_MAP = {
+            LifecycleStatus.CANDIDATE: "rejected",
+            LifecycleStatus.DRAFT: "sent_to_draft",
+            LifecycleStatus.REVIEW: "sent_to_review",
+        }
+        action = _ACTION_MAP.get(target, target.value)
         ctx.audit_log.record(
             AuditEntry(
                 term_uri=term.term_uri,
