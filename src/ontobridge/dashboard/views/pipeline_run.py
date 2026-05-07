@@ -5,6 +5,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from ontobridge.agents.harvester.agent import HarvesterAgent
 from ontobridge.batch import BatchPipelineRunner
 from ontobridge.dashboard.context import DashboardContext
 
@@ -29,16 +30,44 @@ def render_pipeline_run(ctx: DashboardContext) -> None:
         "Approved by (optional)", value="", key="run_approved_by"
     )
 
+    use_llm = st.toggle(
+        "Use LLM extractor (Ollama)",
+        value=False,
+        help="Uses local Ollama LLM to extract terms from natural prose. "
+             "Slower but works on any document. Requires Ollama running locally.",
+        key="run_use_llm",
+    )
+
+    if use_llm:
+        llm_model = st.text_input(
+            "Ollama model", value="gemma4:26b", key="run_llm_model"
+        )
+        st.caption("Make sure Ollama is running. First run loads the model (~30s).")
+
     if st.button("Run Pipeline", disabled=uploaded is None, type="primary"):
+        harvester = _build_harvester(use_llm, llm_model if use_llm else "gemma4:26b")
         _run(
             ctx,
             uploaded,
             source_system=source_system or "upload",
             approved_by=approved_by.strip() or None,
+            harvester=harvester,
         )
 
 
-def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: str | None) -> None:
+def _build_harvester(use_llm: bool, model: str) -> HarvesterAgent:
+    if use_llm:
+        try:
+            from ontobridge.agents.ner.backend import OllamaBackend
+            from ontobridge.agents.ner.extractor import LLMNerExtractor
+            return HarvesterAgent(extractor=LLMNerExtractor(OllamaBackend(model=model)))
+        except ImportError:
+            st.error("langchain-ollama not installed. Run: pip install langchain-ollama langchain-core")
+            st.stop()
+    return HarvesterAgent()
+
+
+def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: str | None, harvester: HarvesterAgent) -> None:
     progress_bar = st.progress(0, text="Starting pipeline…")
 
     suffix = Path(uploaded.name).suffix
@@ -50,6 +79,7 @@ def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: st
         runner = BatchPipelineRunner(
             ontology=ctx.ontology,
             publisher=ctx.publisher,
+            harvester=harvester,
             on_progress=lambda done, total: progress_bar.progress(
                 done / total,
                 text=f"Processing term {done} / {total}…",
