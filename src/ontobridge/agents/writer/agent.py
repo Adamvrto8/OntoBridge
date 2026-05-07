@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, SKOS
 
@@ -149,9 +151,9 @@ class WriterAgent:
         for ctx in enriched.policy_context:
             if not ctx.document_ref:
                 continue
-            ref = f"policy:{ctx.document_ref}"
+            ref = f"policy:{quote(ctx.document_ref, safe=':/_-.')}"
             if ctx.section:
-                ref += f"#section-{ctx.section}"
+                ref += f"#section-{quote(ctx.section, safe='')}"
             g.add((subject, DCTERMS.source, URIRef(ref)))
 
     def _resolve_object(self, label: str) -> URIRef | Literal:

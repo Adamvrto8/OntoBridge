@@ -30,28 +30,39 @@ def render_pipeline_run(ctx: DashboardContext) -> None:
         "Approved by (optional)", value="", key="run_approved_by"
     )
 
-    use_llm = st.toggle(
-        "Use LLM extractor (Ollama)",
+    st.divider()
+    st.caption("**LLM options** — require Ollama running locally")
+
+    col_ner, col_def = st.columns(2)
+    use_llm_ner = col_ner.toggle(
+        "Use LLM extractor",
         value=False,
-        help="Uses local Ollama LLM to extract terms from natural prose. "
-             "Slower but works on any document. Requires Ollama running locally.",
-        key="run_use_llm",
+        key="run_use_llm_ner",
+        help="Uses Ollama to extract terms from natural prose. Works on any document, not just formal glossaries.",
+    )
+    use_llm_def = col_def.toggle(
+        "Improve definitions with LLM",
+        value=False,
+        key="run_use_llm_def",
+        help="After taxonomy placement, an LLM rewrites each definition and generates IF...THEN business rules.",
     )
 
-    if use_llm:
+    llm_model = None
+    if use_llm_ner or use_llm_def:
         llm_model = st.text_input(
-            "Ollama model", value="gemma4:26b", key="run_llm_model"
+            "Ollama model", value="gemma4:26b", key="run_llm_model",
+            help="Any model you have pulled in Ollama. First run loads the model (~30s)."
         )
-        st.caption("Make sure Ollama is running. First run loads the model (~30s).")
 
     if st.button("Run Pipeline", disabled=uploaded is None, type="primary"):
-        harvester = _build_harvester(use_llm, llm_model if use_llm else "gemma4:26b")
+        harvester = _build_harvester(use_llm_ner, llm_model or "gemma4:26b")
         _run(
             ctx,
             uploaded,
             source_system=source_system or "upload",
             approved_by=approved_by.strip() or None,
             harvester=harvester,
+            llm_model=llm_model if use_llm_def else None,
         )
 
 
@@ -67,8 +78,22 @@ def _build_harvester(use_llm: bool, model: str) -> HarvesterAgent:
     return HarvesterAgent()
 
 
-def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: str | None, harvester: HarvesterAgent) -> None:
-    progress_bar = st.progress(0, text="Starting pipeline…")
+def _run(
+    ctx: DashboardContext,
+    uploaded,
+    *,
+    source_system: str,
+    approved_by: str | None,
+    harvester: HarvesterAgent,
+    llm_model: str | None,
+) -> None:
+    progress_bar = st.progress(0, text="Starting pipeline...")
+
+    definition_agent = None
+    if llm_model:
+        from ontobridge.agents.definition.agent import LLMDefinitionAgent
+        from ontobridge.agents.ner.backend import OllamaBackend
+        definition_agent = LLMDefinitionAgent(OllamaBackend(model=llm_model))
 
     suffix = Path(uploaded.name).suffix
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -80,9 +105,10 @@ def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: st
             ontology=ctx.ontology,
             publisher=ctx.publisher,
             harvester=harvester,
+            definition_agent=definition_agent,
             on_progress=lambda done, total: progress_bar.progress(
                 done / total,
-                text=f"Processing term {done} / {total}…",
+                text=f"Processing term {done} / {total}...",
             ),
         )
         result = runner.run_document(
@@ -104,7 +130,8 @@ def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: st
     if not result.total:
         st.warning(
             "No terms were extracted from the document. "
-            "Check that the file contains business term definitions."
+            "Check that the file contains business term definitions, "
+            "or enable the LLM extractor for natural prose."
         )
         return
 
