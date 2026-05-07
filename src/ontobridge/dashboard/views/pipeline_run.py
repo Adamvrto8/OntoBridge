@@ -9,6 +9,7 @@ from ontobridge.batch import BatchPipelineRunner
 from ontobridge.dashboard.context import DashboardContext
 
 _ACCEPTED_TYPES = ["txt", "pdf", "docx", "csv"]
+_OLLAMA_MODELS = ["llama3.2:1b", "llama3", "gemma3:1b"]
 
 
 def render_pipeline_run(ctx: DashboardContext) -> None:
@@ -29,17 +30,46 @@ def render_pipeline_run(ctx: DashboardContext) -> None:
         "Approved by (optional)", value="", key="run_approved_by"
     )
 
+    st.divider()
+    use_llm = st.toggle(
+        "Improve definitions with LLM (Ollama)",
+        value=False,
+        key="run_use_llm",
+        help="After taxonomy placement, an LLM rewrites each definition and generates IF…THEN business rules.",
+    )
+    llm_model = None
+    if use_llm:
+        llm_model = st.selectbox(
+            "Ollama model",
+            options=_OLLAMA_MODELS,
+            key="run_llm_model",
+        )
+
     if st.button("Run Pipeline", disabled=uploaded is None, type="primary"):
         _run(
             ctx,
             uploaded,
             source_system=source_system or "upload",
             approved_by=approved_by.strip() or None,
+            llm_model=llm_model,
         )
 
 
-def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: str | None) -> None:
+def _run(
+    ctx: DashboardContext,
+    uploaded,
+    *,
+    source_system: str,
+    approved_by: str | None,
+    llm_model: str | None,
+) -> None:
     progress_bar = st.progress(0, text="Starting pipeline…")
+
+    definition_agent = None
+    if llm_model:
+        from ontobridge.agents.definition.agent import LLMDefinitionAgent
+        from ontobridge.agents.ner.backend import OllamaBackend
+        definition_agent = LLMDefinitionAgent(OllamaBackend(model=llm_model))
 
     suffix = Path(uploaded.name).suffix
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -50,6 +80,7 @@ def _run(ctx: DashboardContext, uploaded, *, source_system: str, approved_by: st
         runner = BatchPipelineRunner(
             ontology=ctx.ontology,
             publisher=ctx.publisher,
+            definition_agent=definition_agent,
             on_progress=lambda done, total: progress_bar.progress(
                 done / total,
                 text=f"Processing term {done} / {total}…",
