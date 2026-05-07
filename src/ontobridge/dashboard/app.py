@@ -15,11 +15,13 @@ from ontobridge.dashboard.views import (
     render_graph,
     render_inbox,
     render_miro,
+    render_pipeline_run,
     render_stats,
 )
 
 _PAGES = {
     "Governance Inbox": render_inbox,
+    "Run Pipeline": render_pipeline_run,
     "Term Detail": render_detail,
     "Glossary Browser": render_glossary,
     "Pipeline Stats": render_stats,
