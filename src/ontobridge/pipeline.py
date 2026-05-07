@@ -5,6 +5,7 @@ from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.mapping import MappingAgent, from_ontology
 from ontobridge.agents.mapping.glossary import GlossarySource
 from ontobridge.agents.mapping.strategies import Encoder
+from ontobridge.agents.definition.agent import LLMDefinitionAgent
 from ontobridge.agents.policy_linker import PolicyLinkerAgent
 from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
@@ -47,6 +48,7 @@ class PipelineRunner:
         encoder: Encoder | None = None,
         config: PipelineConfig | None = None,
         policy_linker: PolicyLinkerAgent | None = None,
+        definition_agent: LLMDefinitionAgent | None = None,
     ):
         cfg = config or PipelineConfig(encoder=encoder)
 
@@ -54,6 +56,7 @@ class PipelineRunner:
         self.publisher = publisher
         self.config = cfg
         self.policy_linker = policy_linker
+        self.definition_agent = definition_agent
         self.glossary: GlossarySource = (
             glossary if glossary is not None else from_ontology(ontology)
         )
@@ -90,6 +93,8 @@ class PipelineRunner:
             self.policy_linker.apply(term)
         self.mapping.apply(term)
         self.taxonomy.apply(term)
+        if self.definition_agent is not None:
+            self.definition_agent.apply(term)
         self.relations.apply(term)
         candidate = self._term_to_candidate(term)
         term.governance_result = self.governance.evaluate(candidate)

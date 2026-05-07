@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
 
+from ontobridge.agents.definition.agent import LLMDefinitionAgent
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.harvester.agent import HarvesterAgent
 from ontobridge.agents.policy_linker import PolicyLinkerAgent
@@ -106,8 +107,14 @@ class BatchPipelineRunner:
         harvester: HarvesterAgent | None = None,
         on_progress: ProgressCallback | None = None,
         policy_linker: PolicyLinkerAgent | None = None,
+        definition_agent: LLMDefinitionAgent | None = None,
     ) -> None:
-        self._runner = PipelineRunner(ontology, publisher, config=config, policy_linker=policy_linker)
+        self._runner = PipelineRunner(
+            ontology, publisher,
+            config=config,
+            policy_linker=policy_linker,
+            definition_agent=definition_agent,
+        )
         self._harvester = harvester or HarvesterAgent()
         self._on_progress = on_progress
 
