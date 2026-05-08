@@ -38,3 +38,7 @@ Thumbs.db
 
 # Demo output files
 examples/output/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

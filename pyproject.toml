@@ -36,6 +36,11 @@ llm = [
     "langchain-ollama>=0.2",
     "langchain-core>=0.3",
 ]
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

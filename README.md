@@ -1,13 +1,18 @@
 # OntoBridge
 
 Multi-agent semantic term governance system for retail banking.  
-Extracts business terms from documents, maps them onto a SKOS/OWL ontology, and routes them through a human-in-the-loop governance workflow — all from a Streamlit dashboard.
+Extracts business terms from documents, maps them onto a SKOS/OWL ontology, and routes them through a human-in-the-loop governance workflow.
+
+Two interfaces are available:
+- **React web app** — production-ready UI (FastAPI backend + Vite/React frontend)
+- **Streamlit dashboard** — quick prototyping and internal tooling
 
 ---
 
 ## Requirements
 
 - Python 3.10 or newer
+- Node.js 18 or newer (for the React frontend)
 - Git
 
 Optional (for local LLM extraction):
@@ -41,36 +46,61 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install the package and dependencies
+### 3. Install Python dependencies
 
 ```bash
-pip install -e ".[dashboard,readers,llm]"
+pip install -e ".[api,readers,llm]"
 ```
 
 | Extra | What it adds |
 |---|---|
-| `dashboard` | Streamlit UI, knowledge graph visualisation |
+| `api` | FastAPI + Uvicorn REST backend |
+| `dashboard` | Streamlit UI (optional, for internal tooling) |
 | `readers` | PDF and Word (.docx) document support |
-| `llm` | Ollama-backed LLM extraction (langchain-ollama) |
+| `llm` | Ollama-backed LLM extraction |
 
-To also enable the Anthropic API backend:
+For Anthropic API support:
 ```bash
 pip install anthropic
 ```
 
-### 4. Run the dashboard
+### 4. Start the FastAPI backend
 
-**Demo mode** (in-memory, resets on restart — good for testing):
+**Demo mode** (in-memory, resets on restart):
+```bash
+uvicorn api_server:app --reload
+```
+
+**Persistent mode** (SQLite, survives restarts):
+```powershell
+$env:DB_PATH = "ontobridge.db"
+uvicorn api_server:app --reload
+```
+
+API runs at **http://localhost:8000** · Interactive docs at **http://localhost:8000/docs**
+
+### 5. Start the React frontend
+
+In a second terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open your browser at **http://localhost:5173**
+
+---
+
+### Running the Streamlit dashboard (optional)
+
+The original Streamlit dashboard is still available for internal use:
+
 ```bash
 streamlit run streamlit_app.py
 ```
 
-**Persistent mode** (SQLite, data survives restarts):
-```bash
-streamlit run streamlit_app.py -- --db ontobridge.db
-```
-
-Open your browser at **http://localhost:8501**
+Open at **http://localhost:8501**
 
 ---
 
