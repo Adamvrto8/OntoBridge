@@ -31,14 +31,13 @@ def render_pipeline_run(ctx: DashboardContext) -> None:
     )
 
     st.divider()
-    st.caption("**LLM options** — require Ollama running locally")
 
     col_ner, col_def = st.columns(2)
     use_llm_ner = col_ner.toggle(
         "Use LLM extractor",
         value=False,
         key="run_use_llm_ner",
-        help="Uses Ollama to extract terms from natural prose. Works on any document, not just formal glossaries.",
+        help="Uses an LLM to extract terms from natural prose. Works on any document, not just formal glossaries.",
     )
     use_llm_def = col_def.toggle(
         "Improve definitions with LLM",
@@ -47,34 +46,76 @@ def render_pipeline_run(ctx: DashboardContext) -> None:
         help="After taxonomy placement, an LLM rewrites each definition and generates IF...THEN business rules.",
     )
 
+    llm_backend = None
     llm_model = None
     if use_llm_ner or use_llm_def:
-        llm_model = st.text_input(
-            "Ollama model", value="gemma4:26b", key="run_llm_model",
-            help="Any model you have pulled in Ollama. First run loads the model (~30s)."
+        backend_choice = st.radio(
+            "LLM backend",
+            ["Anthropic API (Claude)", "Ollama (local)"],
+            key="run_llm_backend",
+            horizontal=True,
         )
+        if backend_choice == "Anthropic API (Claude)":
+            import os
+            llm_backend = "anthropic"
+            llm_model = st.selectbox(
+                "Claude model",
+                ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
+                key="run_claude_model",
+                help="Haiku is fastest and cheapest. Sonnet gives better results.",
+            )
+            api_key_env = os.environ.get("ANTHROPIC_API_KEY", "")
+            if not api_key_env:
+                st.warning(
+                    "ANTHROPIC_API_KEY environment variable not set. "
+                    "Set it before starting the dashboard: "
+                    "`$env:ANTHROPIC_API_KEY = 'sk-ant-...'`"
+                )
+        else:
+            llm_backend = "ollama"
+            llm_model = st.text_input(
+                "Ollama model", value="gemma4:26b", key="run_llm_model",
+                help="Any model you have pulled in Ollama. First run loads the model (~30s)."
+            )
 
     if st.button("Run Pipeline", disabled=uploaded is None, type="primary"):
-        harvester = _build_harvester(use_llm_ner, llm_model or "gemma4:26b")
+        harvester = _build_harvester(use_llm_ner, llm_backend or "ollama", llm_model or "gemma4:26b")
         _run(
             ctx,
             uploaded,
             source_system=source_system or "upload",
             approved_by=approved_by.strip() or None,
             harvester=harvester,
+            llm_backend=llm_backend if use_llm_def else None,
             llm_model=llm_model if use_llm_def else None,
         )
 
 
-def _build_harvester(use_llm: bool, model: str) -> HarvesterAgent:
-    if use_llm:
+def _build_backend(backend: str, model: str):
+    if backend == "anthropic":
+        try:
+            from ontobridge.agents.ner.backend import AnthropicBackend
+            return AnthropicBackend(model=model)
+        except ImportError:
+            st.error("anthropic package not installed. Run: pip install anthropic")
+            st.stop()
+        except ValueError as e:
+            st.error(str(e))
+            st.stop()
+    else:
         try:
             from ontobridge.agents.ner.backend import OllamaBackend
-            from ontobridge.agents.ner.extractor import LLMNerExtractor
-            return HarvesterAgent(extractor=LLMNerExtractor(OllamaBackend(model=model)))
+            return OllamaBackend(model=model)
         except ImportError:
             st.error("langchain-ollama not installed. Run: pip install langchain-ollama langchain-core")
             st.stop()
+
+
+def _build_harvester(use_llm: bool, backend: str, model: str) -> HarvesterAgent:
+    if use_llm:
+        from ontobridge.agents.ner.extractor import LLMNerExtractor
+        llm = _build_backend(backend, model)
+        return HarvesterAgent(extractor=LLMNerExtractor(llm))
     return HarvesterAgent()
 
 
@@ -85,15 +126,15 @@ def _run(
     source_system: str,
     approved_by: str | None,
     harvester: HarvesterAgent,
+    llm_backend: str | None,
     llm_model: str | None,
 ) -> None:
     progress_bar = st.progress(0, text="Starting pipeline...")
 
     definition_agent = None
-    if llm_model:
+    if llm_backend and llm_model:
         from ontobridge.agents.definition.agent import LLMDefinitionAgent
-        from ontobridge.agents.ner.backend import OllamaBackend
-        definition_agent = LLMDefinitionAgent(OllamaBackend(model=llm_model))
+        definition_agent = LLMDefinitionAgent(_build_backend(llm_backend, llm_model))
 
     suffix = Path(uploaded.name).suffix
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
