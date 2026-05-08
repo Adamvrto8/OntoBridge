@@ -83,12 +83,12 @@ export default function Inbox() {
     <div className="flex flex-col h-screen bg-gray-50">
       <TopBar breadcrumb={['Workflow', 'Governance inbox']} />
 
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+      <div className="flex-1 overflow-auto px-8 py-8 space-y-5">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Governance inbox</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Terms awaiting steward action. Sorted by severity, then age.</p>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Governance inbox</h1>
+            <p className="text-sm text-gray-400 mt-1">Terms awaiting steward action. Sorted by severity, then age.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -111,12 +111,12 @@ export default function Inbox() {
 
         {/* Metric cards */}
         <div className="grid grid-cols-6 gap-3">
-          <MetricCard label="Total nodes"      value={total}              trend={42}        trendLabel="/ 7d"   color="#6366f1" />
-          <MetricCard label="Definition Cov."  value={`${defCoverage}%`} trend={1.2}       trendLabel="pt"     color="#6366f1" />
-          <MetricCard label="Open issues"      value={reviewCount}        trend={5}         trendLabel="/ 24h"  color="#ef4444" negative />
-          <MetricCard label="Pending review"   value={reviewCount}        trend={-3}        trendLabel="/ 24h"  color="#6366f1" />
-          <MetricCard label="Audit events 24h" value={stats?.recent_activity ?? 0}          color="#6366f1" />
-          <MetricCard label="Pipeline runs"    value={published}          trend={98}        trendLabel="% pass" color="#22c55e" />
+          <MetricCard label="Total nodes"      value={total}                        trend={42}  trendLabel="/ 7d"   color="#6366f1" />
+          <MetricCard label="Definition cov."  value={`${defCoverage}%`}            trend={1.2} trendLabel="pt"     color="#6366f1" />
+          <MetricCard label="Open issues"      value={reviewCount}                  trend={5}   trendLabel="/ 24h"  color="#ef4444" negative />
+          <MetricCard label="Pending review"   value={reviewCount}                  trend={-3}  trendLabel="/ 24h"  color="#6366f1" />
+          <MetricCard label="Audit events 24h" value={stats?.recent_activity ?? 0}              color="#8b5cf6" />
+          <MetricCard label="Pipeline runs"    value={published}                    trend={98}  trendLabel="% pass" color="#22c55e" />
         </div>
 
         {/* Pipeline funnel */}
