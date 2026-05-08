@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
+import TopBarWrapper from './components/TopBarWrapper'
 import { api } from './api/client'
 import Inbox from './pages/Inbox'
 import Glossary from './pages/Glossary'
@@ -17,20 +18,19 @@ export default function App() {
   useEffect(() => {
     api.stats.get().then(s => {
       setCounts({
-        'Governance Inbox': s.by_status?.review ?? 0,
-        'My Reviews':       s.by_status?.review ?? 0,
-        'Drafts':           s.by_status?.draft ?? 0,
-        'Glossary Browser': s.by_status?.published ?? 0,
-        'Audit Log':        s.recent_activity ?? 0,
+        'inbox':   s.by_status?.review    ?? 0,
+        'glossary': s.by_status?.published ?? 0,
+        'audit':   s.recent_activity       ?? 0,
       })
     }).catch(() => {})
   }, [])
 
   return (
     <BrowserRouter>
-      <div className="flex min-h-screen">
+      <div className="app">
         <Sidebar counts={counts} />
-        <main className="flex-1 overflow-auto h-screen">
+        <TopBarWrapper />
+        <main className="main">
           <Routes>
             <Route path="/"         element={<Inbox />} />
             <Route path="/pipeline" element={<Pipeline />} />

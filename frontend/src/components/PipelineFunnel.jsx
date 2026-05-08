@@ -1,45 +1,35 @@
 const STAGES = [
-  { key: 'harvest',    label: 'Harvest',    sub: 'policies + catalogs' },
-  { key: 'mapping',    label: 'Mapping',    sub: 'fibo + dedupe' },
-  { key: 'taxonomy',   label: 'Taxonomy',   sub: 'skos placement' },
-  { key: 'relations',  label: 'Relations',  sub: 'verb resolution' },
-  { key: 'governance', label: 'Governance', sub: 'rule check' },
-  { key: 'writer',     label: 'Writer',     sub: 'turtle published' },
-]
-
-const DOT_COLORS = [
-  'bg-gray-400', 'bg-blue-400', 'bg-indigo-400',
-  'bg-purple-400', 'bg-orange-400', 'bg-green-500',
+  { label: 'Harvest',    sub: 'policies + catalogs', factor: 1.00 },
+  { label: 'Mapping',    sub: 'fibo + dedupe',        factor: 0.92 },
+  { label: 'Taxonomy',   sub: 'skos placement',       factor: 0.84, warn: true },
+  { label: 'Relations',  sub: 'verb resolution',      factor: 0.79 },
+  { label: 'Governance', sub: 'rule check',           factor: 0.75, warn: true },
+  { label: 'Writer',     sub: 'turtle published',     factor: null },
 ]
 
 export default function PipelineFunnel({ total = 0, published = 0, lastRun = null }) {
-  const counts = estimateFunnel(total, published)
+  const ratio = total > 0 ? published / total : 0
+  const counts = STAGES.map((s, i) =>
+    s.factor === null ? published : Math.round(total * s.factor)
+  )
+
   return (
-    <div className="bg-white border border-gray-100 rounded-xl px-5 py-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-gray-400">
-          Pipeline · {lastRun ? `last run ${lastRun}` : 'no recent run'}
-        </p>
-        <p className="text-xs text-gray-400">{counts[5]} · {published} published</p>
+    <div className="card" style={{ marginBottom: 'var(--gap)' }}>
+      <div className="card-h">
+        <h3>Pipeline · {lastRun ? `last run ${lastRun}` : 'no recent run'}</h3>
+        <span className="meta mono">{total} → {published} published</span>
       </div>
-      <div className="grid grid-cols-6 gap-3">
-        {STAGES.map((s, i) => (
-          <div key={s.key} className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${DOT_COLORS[i]}`} />
-              <span className="text-xs font-medium text-gray-600">{s.label}</span>
+      <div style={{ padding: '12px' }}>
+        <div className="pipe">
+          {STAGES.map((s, i) => (
+            <div key={s.label} className={`step${s.warn ? ' warn' : ''}`}>
+              <div className="nm"><span className="dot" />{s.label}</div>
+              <div className="v">{counts[i]}</div>
+              <div className="sub">{s.sub}</div>
             </div>
-            <p className="text-xl font-semibold text-gray-900 pl-3.5">{counts[i]}</p>
-            <p className="text-[10px] text-gray-400 pl-3.5">{s.sub}</p>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   )
-}
-
-function estimateFunnel(total, published) {
-  if (total === 0) return [0, 0, 0, 0, 0, 0]
-  const factors = [1, 0.92, 0.84, 0.79, 0.75, published / total]
-  return factors.map(f => Math.round(total * f))
 }

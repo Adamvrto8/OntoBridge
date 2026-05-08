@@ -1,33 +1,22 @@
-import Sparkline from './Sparkline'
-
-export default function MetricCard({ label, value, trend, trendLabel, color = '#6366f1', negative = false }) {
-  const hasTrend  = trend !== undefined
-  const trendUp   = hasTrend && trend >= 0
-  const trendColor = negative
-    ? (trendUp ? 'text-red-500' : 'text-emerald-600')
-    : (trendUp ? 'text-emerald-600' : 'text-red-500')
-
+export default function MetricCard({ label, value, delta, deltaUp, alert = false }) {
+  const deltaClass = deltaUp === true ? ' up' : deltaUp === false ? ' down' : ''
   return (
-    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow min-w-0">
-      <div className="h-0.5 w-full" style={{ background: color }} />
-      <div className="p-4 flex flex-col gap-2 flex-1">
-        <p className="text-[10px] font-semibold tracking-widest text-gray-400 uppercase truncate">{label}</p>
-        <div className="flex items-end justify-between gap-2">
-          <div>
-            <p className="text-2xl font-bold text-gray-900 leading-none tabular-nums">{value}</p>
-            {hasTrend && (
-              <p className={`text-xs mt-1.5 font-medium ${trendColor}`}>
-                {trendUp ? '↑' : '↓'} {Math.abs(trend)}{trendLabel ? ` ${trendLabel}` : ''}
-              </p>
-            )}
-          </div>
-          <Sparkline
-            value={typeof value === 'string' ? parseFloat(value) || 0 : value}
-            color={color}
-            negative={negative}
-          />
+    <div className={`metric${alert ? ' alert' : ''}`}>
+      <div className="lbl">{label}</div>
+      <div className="num">{value ?? '—'}</div>
+      {delta && (
+        <div className={`delta${deltaClass}`}>
+          {deltaUp === true  && <Arrow up />}
+          {deltaUp === false && <Arrow />}
+          <span>{delta}</span>
         </div>
-      </div>
+      )}
     </div>
   )
 }
+
+const Arrow = ({ up }) => (
+  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d={up ? "M4 10l4-4 4 4" : "M4 6l4 4 4-4"} />
+  </svg>
+)
