@@ -1,21 +1,18 @@
 import { useRef, useState } from 'react'
-import { Upload, CheckCircle } from 'lucide-react'
 import { api } from '../api/client'
-import StatusBadge from '../components/StatusBadge'
 
 export default function Pipeline() {
-  const [file, setFile] = useState(null)
+  const [file,       setFile]       = useState(null)
   const [sourceSystem, setSourceSystem] = useState('upload')
   const [approvedBy, setApprovedBy] = useState('')
-  const [useLlmNer, setUseLlmNer] = useState(false)
-  const [useLlmDef, setUseLlmDef] = useState(false)
+  const [useLlmNer,  setUseLlmNer]  = useState(false)
+  const [useLlmDef,  setUseLlmDef]  = useState(false)
   const [llmBackend, setLlmBackend] = useState('anthropic')
-  const [llmModel, setLlmModel] = useState('claude-haiku-4-5-20251001')
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [llmModel,   setLlmModel]   = useState('claude-haiku-4-5-20251001')
+  const [result,     setResult]     = useState(null)
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState(null)
   const inputRef = useRef()
-
   const showLlm = useLlmNer || useLlmDef
 
   const run = async () => {
@@ -29,150 +26,193 @@ export default function Pipeline() {
     fd.append('use_llm_def', useLlmDef)
     fd.append('llm_backend', llmBackend)
     fd.append('llm_model', llmModel)
-    try {
-      const res = await api.pipeline.run(fd)
-      setResult(res)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    try { setResult(await api.pipeline.run(fd)) }
+    catch (e) { setError(e.message) }
+    finally { setLoading(false) }
   }
 
   return (
-    <div className="p-8 max-w-2xl">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-1">Run Pipeline</h1>
-      <p className="text-sm text-gray-500 mb-6">Upload a document to extract and govern business terms.</p>
-
-      {/* File drop */}
-      <div
-        onClick={() => inputRef.current?.click()}
-        className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors mb-5"
-      >
-        <Upload size={24} className="mx-auto mb-2 text-gray-400" />
-        {file ? (
-          <p className="text-sm font-medium text-indigo-600">{file.name}</p>
-        ) : (
-          <>
-            <p className="text-sm text-gray-600 font-medium">Click to upload</p>
-            <p className="text-xs text-gray-400 mt-1">TXT, PDF, DOCX, CSV</p>
-          </>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".txt,.pdf,.docx,.csv"
-          className="hidden"
-          onChange={e => setFile(e.target.files[0])}
-        />
-      </div>
-
-      {/* Fields */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
+    <>
+      <div className="page-head">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Source system</label>
-          <input value={sourceSystem} onChange={e => setSourceSystem(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Approved by (optional)</label>
-          <input value={approvedBy} onChange={e => setApprovedBy(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          <h1>Run Pipeline</h1>
+          <div className="sub">Upload a document to extract and govern business terms.</div>
         </div>
       </div>
 
-      {/* LLM toggles */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5 space-y-3">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">LLM Options</p>
-        <div className="flex gap-6">
-          <Toggle label="Use LLM extractor" value={useLlmNer} onChange={setUseLlmNer} />
-          <Toggle label="Improve definitions" value={useLlmDef} onChange={setUseLlmDef} />
+      <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+
+        {/* File drop zone */}
+        <div
+          className="card"
+          onClick={() => inputRef.current?.click()}
+          style={{
+            padding: '32px 24px', textAlign: 'center', cursor: 'pointer',
+            border: `2px dashed ${file ? 'var(--green)' : 'var(--ice)'}`,
+            background: file ? 'var(--green-bg)' : 'var(--surface)',
+            transition: 'border-color .15s, background .15s',
+          }}
+          onMouseEnter={e => { if (!file) e.currentTarget.style.borderColor = 'var(--slate-d)' }}
+          onMouseLeave={e => { if (!file) e.currentTarget.style.borderColor = 'var(--ice)' }}
+        >
+          <UploadIcon color={file ? 'var(--green)' : 'var(--ink-3)'} />
+          {file ? (
+            <p style={{ marginTop: 8, fontWeight: 500, color: 'var(--green)' }}>{file.name}</p>
+          ) : (
+            <>
+              <p style={{ marginTop: 8, fontWeight: 500, color: 'var(--ink)' }}>Click to upload</p>
+              <p className="mono" style={{ color: 'var(--ink-3)', marginTop: 4 }}>TXT · PDF · DOCX · CSV</p>
+            </>
+          )}
+          <input ref={inputRef} type="file" accept=".txt,.pdf,.docx,.csv" style={{ display: 'none' }}
+            onChange={e => setFile(e.target.files[0])} />
         </div>
-        {showLlm && (
-          <div className="space-y-3 pt-1">
-            <div className="flex gap-4">
-              <Radio label="Anthropic API" value="anthropic" current={llmBackend} onChange={setLlmBackend} />
-              <Radio label="Ollama (local)" value="ollama" current={llmBackend} onChange={setLlmBackend} />
+
+        {/* Fields */}
+        <div className="card card-b" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Field label="Source system" value={sourceSystem} onChange={setSourceSystem} />
+          <Field label="Approved by" value={approvedBy} onChange={setApprovedBy} placeholder="optional" />
+        </div>
+
+        {/* LLM options */}
+        <div className="card">
+          <div className="card-h"><h3>LLM Options</h3></div>
+          <div className="card-b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 24 }}>
+              <Toggle label="Use LLM extractor"  value={useLlmNer} onChange={setUseLlmNer} />
+              <Toggle label="Improve definitions" value={useLlmDef} onChange={setUseLlmDef} />
             </div>
-            {llmBackend === 'anthropic' ? (
-              <select value={llmModel} onChange={e => setLlmModel(e.target.value)}
-                className="border border-gray-200 rounded-lg text-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                <option value="claude-haiku-4-5-20251001">claude-haiku (fast)</option>
-                <option value="claude-sonnet-4-6">claude-sonnet (better)</option>
-                <option value="claude-opus-4-7">claude-opus (best)</option>
-              </select>
-            ) : (
-              <input value={llmModel} onChange={e => setLlmModel(e.target.value)}
-                placeholder="e.g. llama3.2:1b"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            {showLlm && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+                <div style={{ display: 'flex', gap: 20 }}>
+                  <Radio label="Anthropic API"  value="anthropic" current={llmBackend} onChange={setLlmBackend} />
+                  <Radio label="Ollama (local)" value="ollama"    current={llmBackend} onChange={setLlmBackend} />
+                </div>
+                {llmBackend === 'anthropic' ? (
+                  <select value={llmModel} onChange={e => setLlmModel(e.target.value)} style={inputStyle}>
+                    <option value="claude-haiku-4-5-20251001">claude-haiku (fast)</option>
+                    <option value="claude-sonnet-4-6">claude-sonnet (better)</option>
+                    <option value="claude-opus-4-7">claude-opus (best)</option>
+                  </select>
+                ) : (
+                  <input value={llmModel} onChange={e => setLlmModel(e.target.value)}
+                    placeholder="e.g. llama3.2:1b" style={inputStyle} />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button
+          className="btn primary"
+          onClick={run}
+          disabled={!file || loading}
+          style={{ height: 36, width: '100%', justifyContent: 'center', opacity: (!file || loading) ? 0.5 : 1 }}
+        >
+          {loading ? 'Running…' : 'Run Pipeline'}
+        </button>
+
+        {error && (
+          <div style={{ padding: '12px 16px', borderRadius: 'var(--r)', background: 'var(--red-bg)', color: 'var(--red)', fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--gap)' }}>
+              <ResultCard label="Published" value={result.published} color="var(--green)" bg="var(--green-bg)" />
+              <ResultCard label="Skipped"   value={result.skipped}   color="var(--amber)" bg="var(--amber-bg)" />
+              <ResultCard label="Failed"    value={result.failed}    color="var(--red)"   bg="var(--red-bg)" />
+            </div>
+            {result.terms.length > 0 && (
+              <div className="card">
+                <div className="card-h"><h3>Extracted terms</h3><span className="meta mono">{result.terms.length} total</span></div>
+                <table className="issues">
+                  <thead><tr><th>Term</th><th>Status</th><th>Scheme</th></tr></thead>
+                  <tbody>
+                    {result.terms.map(t => (
+                      <tr key={t.term_uri} style={{ cursor: 'default' }}>
+                        <td>
+                          <div style={{ fontWeight: 500 }}>{t.preferred_label}</div>
+                          <div className="mono" style={{ color: 'var(--ink-3)', marginTop: 2 }}>{t.term_uri.split('/').pop()}</div>
+                        </td>
+                        <td><StatusPill status={t.lifecycle_status} /></td>
+                        <td>{t.scheme_label && <span className="scheme-pill">{t.scheme_label}</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}
       </div>
+    </>
+  )
+}
 
-      <button
-        onClick={run}
-        disabled={!file || loading}
-        className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-medium text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        {loading ? 'Running...' : 'Run Pipeline'}
-      </button>
+const inputStyle = {
+  height: 32, padding: '0 10px', width: '100%',
+  border: '1px solid var(--ice)', borderRadius: 'var(--r)',
+  background: 'var(--surface)', font: '400 13px var(--font-sans)',
+  color: 'var(--ink)', outline: 'none',
+}
 
-      {error && <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>}
-
-      {result && (
-        <div className="mt-6">
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <Metric label="Published" value={result.published} color="text-green-600" />
-            <Metric label="Skipped" value={result.skipped} color="text-amber-600" />
-            <Metric label="Failed" value={result.failed} color="text-red-600" />
-          </div>
-          {result.terms.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
-              {result.terms.map(t => (
-                <div key={t.term_uri} className="px-4 py-3 flex items-center gap-3">
-                  <CheckCircle size={15} className="text-green-500 shrink-0" />
-                  <span className="text-sm font-medium text-gray-800">{t.preferred_label}</span>
-                  <StatusBadge status={t.lifecycle_status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+function Field({ label, value, onChange, placeholder }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ font: '500 11px var(--font-sans)', color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        {label}
+      </label>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inputStyle} />
     </div>
   )
 }
 
 function Toggle({ label, value, onChange }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`w-10 h-5 rounded-full transition-colors relative ${value ? 'bg-indigo-600' : 'bg-gray-300'}`}
-      >
-        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-5' : ''}`} />
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+      <button type="button" onClick={() => onChange(!value)} style={{
+        width: 36, height: 20, borderRadius: 10, border: 'none', padding: 0, position: 'relative',
+        background: value ? 'var(--ink)' : 'var(--ice)', cursor: 'pointer', transition: 'background .15s',
+      }}>
+        <span style={{
+          position: 'absolute', top: 2, left: value ? 18 : 2,
+          width: 16, height: 16, borderRadius: '50%', background: '#fff',
+          transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        }} />
       </button>
-      <span className="text-sm text-gray-700">{label}</span>
+      <span style={{ font: '400 13px var(--font-sans)', color: 'var(--ink-2)' }}>{label}</span>
     </label>
   )
 }
 
 function Radio({ label, value, current, onChange }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer">
-      <input type="radio" checked={current === value} onChange={() => onChange(value)} className="accent-indigo-600" />
-      <span className="text-sm text-gray-700">{label}</span>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      <input type="radio" checked={current === value} onChange={() => onChange(value)} />
+      <span style={{ font: '400 13px var(--font-sans)', color: 'var(--ink-2)' }}>{label}</span>
     </label>
   )
 }
 
-function Metric({ label, value, color }) {
+function ResultCard({ label, value, color, bg }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-      <div className={`text-2xl font-semibold ${color}`}>{value}</div>
-      <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+    <div className="card" style={{ padding: '16px 20px', background: bg, borderColor: color + '33', textAlign: 'center' }}>
+      <div style={{ font: `400 32px var(--font-sans)`, color, letterSpacing: '-0.02em', fontFeatureSettings: '"tnum"' }}>{value}</div>
+      <div style={{ font: '400 11px var(--font-sans)', color, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>{label}</div>
     </div>
   )
 }
+
+function StatusPill({ status }) {
+  const map = { published: 'green', review: 'amber', deprecated: 'red' }
+  return <span className={`pill ${map[status] || ''}`}>{status}</span>
+}
+
+const UploadIcon = ({ color }) => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto', display: 'block' }}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+  </svg>
+)

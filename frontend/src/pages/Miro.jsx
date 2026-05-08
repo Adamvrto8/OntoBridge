@@ -6,18 +6,34 @@ export default function Miro() {
     '&embedId=742433091738'
 
   return (
-    <div className="flex flex-col h-full p-8">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-1">Miro Board</h1>
-      <p className="text-sm text-gray-500 mb-4">Collaborative whiteboard for ontology design.</p>
-      <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 min-h-[600px]">
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Miro Board</h1>
+          <div className="sub">Collaborative whiteboard for ontology design and stakeholder review.</div>
+        </div>
+        <div className="actions">
+          <a href="https://miro.com" target="_blank" rel="noopener noreferrer" className="btn">
+            <ExtIcon /> Open in Miro
+          </a>
+        </div>
+      </div>
+
+      <div className="card" style={{ overflow: 'hidden' }}>
         <iframe
           src={miroUrl}
-          className="w-full h-full"
-          style={{ minHeight: 600 }}
+          style={{ display: 'block', width: '100%', height: 'calc(100vh - 220px)', minHeight: 500, border: 0 }}
           allow="fullscreen; clipboard-read; clipboard-write"
           allowFullScreen
+          title="Miro board"
         />
       </div>
-    </div>
+    </>
   )
 }
+
+const ExtIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 3h4v4M13 3 7 9M7 4H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V9"/>
+  </svg>
+)

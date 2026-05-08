@@ -1,31 +1,36 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
 import { api } from '../api/client'
-import StatusBadge from '../components/StatusBadge'
 
 const TRANSITIONS = {
-  candidate: ['draft', 'review'],
-  draft:     ['review', 'candidate'],
-  review:    ['published', 'draft', 'candidate'],
-  published: ['deprecated', 'review'],
+  candidate:  ['draft', 'review'],
+  draft:      ['review', 'candidate'],
+  review:     ['published', 'draft', 'candidate'],
+  published:  ['deprecated', 'review'],
   deprecated: [],
 }
+
+const STATUS_PILL = {
+  candidate:  '',
+  draft:      '',
+  review:     'amber',
+  published:  'green',
+  deprecated: 'red',
+}
+
+const lcOrder = ['candidate', 'draft', 'review', 'published']
 
 export default function TermDetail() {
   const { '*': uri } = useParams()
   const navigate = useNavigate()
-  const [term, setTerm] = useState(null)
+  const [term,    setTerm]    = useState(null)
   const [loading, setLoading] = useState(true)
-  const [actor, setActor] = useState('')
+  const [actor,   setActor]   = useState('')
 
   const load = () => {
     setLoading(true)
-    api.terms.get(decodeURIComponent(uri))
-      .then(setTerm)
-      .finally(() => setLoading(false))
+    api.terms.get(decodeURIComponent(uri)).then(setTerm).finally(() => setLoading(false))
   }
-
   useEffect(() => { load() }, [uri])
 
   const transition = async (newStatus) => {
@@ -35,83 +40,133 @@ export default function TermDetail() {
     } catch (e) { alert(e.message) }
   }
 
-  if (loading) return <p className="p-8 text-gray-400">Loading...</p>
-  if (!term) return <p className="p-8 text-red-500">Term not found.</p>
+  if (loading) return <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading…</p>
+  if (!term)   return <p style={{ color: 'var(--red)', fontSize: 13 }}>Term not found.</p>
 
   const nextStatuses = TRANSITIONS[term.lifecycle_status] || []
+  const lcIdx = lcOrder.indexOf(term.lifecycle_status)
 
   return (
-    <div className="p-8 max-w-3xl">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6">
-        <ArrowLeft size={15} /> Back
-      </button>
+    <>
+      <div className="page-head">
+        <div>
+          <button
+            className="btn ghost"
+            onClick={() => navigate(-1)}
+            style={{ marginBottom: 8, paddingLeft: 0 }}
+          >
+            ← Back
+          </button>
+          <h1>{term.preferred_label}</h1>
+          {term.scheme_label && (
+            <div className="sub" style={{ marginTop: 4 }}>
+              <span className="scheme-pill">{term.scheme_label}</span>
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span className="lifecycle">
+            {lcOrder.map((s, i) => (
+              <span key={s} className={`b${i <= lcIdx ? ' on' : ''}`} title={s} />
+            ))}
+            <span style={{ marginLeft: 6 }}>{term.lifecycle_status}</span>
+          </span>
+          <span className={`pill ${STATUS_PILL[term.lifecycle_status] || ''}`}>
+            {term.lifecycle_status}
+          </span>
+        </div>
+      </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6 mb-4">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">{term.preferred_label}</h1>
-            {term.scheme_label && <p className="text-sm text-gray-400 mt-0.5">{term.scheme_label}</p>}
+      <div style={{ maxWidth: 800, display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+
+        {/* Main card */}
+        <div className="card">
+          <div className="card-h">
+            <h3>Definition</h3>
+            <span className="meta mono">{term.term_uri.split('/').pop()}</span>
           </div>
-          <StatusBadge status={term.lifecycle_status} />
+          <div className="card-b">
+            <p style={{ color: 'var(--ink)', lineHeight: 1.6, fontSize: 14 }}>
+              {term.definition || <span style={{ color: 'var(--ink-3)', fontStyle: 'italic' }}>No definition available.</span>}
+            </p>
+
+            {term.alt_labels?.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ font: '500 10.5px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-3)', marginBottom: 8 }}>
+                  Also known as
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {term.alt_labels.map(l => <span key={l} className="pill">{l}</span>)}
+                </div>
+              </div>
+            )}
+
+            {term.business_rules?.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ font: '500 10.5px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-3)', marginBottom: 8 }}>
+                  Business rules
+                </div>
+                {term.business_rules.map((r, i) => (
+                  <div key={i} style={{
+                    display: 'flex', gap: 10, padding: '6px 0',
+                    borderBottom: i < term.business_rules.length - 1 ? '1px solid var(--ice)' : 0,
+                    fontSize: 13, color: 'var(--ink-2)',
+                  }}>
+                    <span style={{ color: 'var(--slate)', flexShrink: 0 }}>·</span> {r}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        <p className="text-sm text-gray-700 leading-relaxed mb-5">{term.definition}</p>
+        {/* Metadata */}
+        <div className="card">
+          <div className="card-h"><h3>Metadata</h3></div>
+          <div className="card-b">
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px 16px', fontSize: 13 }}>
+              {[
+                ['URI',         <span className="mono" style={{ color: 'var(--ink-2)' }}>{term.term_uri}</span>],
+                ['Scheme',      term.scheme_label || '—'],
+                ['Approved by', term.approved_by  || '—'],
+                ['Source',      term.source_system || '—'],
+                ['Document',    term.document_id  || '—'],
+                ['Version',     <span className="pill">v{term.version}</span>],
+              ].map(([k, v]) => (
+                <>
+                  <span key={`k-${k}`} style={{ color: 'var(--ink-3)' }}>{k}</span>
+                  <span key={`v-${k}`} style={{ color: 'var(--ink)' }}>{v}</span>
+                </>
+              ))}
+            </div>
+          </div>
+        </div>
 
-        {term.alt_labels?.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs font-medium text-gray-500 mb-1.5">Also known as</p>
-            <div className="flex flex-wrap gap-1.5">
-              {term.alt_labels.map(l => (
-                <span key={l} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{l}</span>
+        {/* Transition */}
+        {nextStatuses.length > 0 && (
+          <div className="card">
+            <div className="card-h"><h3>Transition status</h3></div>
+            <div className="card-b" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <input
+                value={actor}
+                onChange={e => setActor(e.target.value)}
+                placeholder="Your name (optional)"
+                style={{
+                  height: 32, padding: '0 10px', border: '1px solid var(--ice)',
+                  borderRadius: 'var(--r)', background: 'var(--surface)',
+                  font: '400 13px var(--font-sans)', color: 'var(--ink)', outline: 'none',
+                }}
+              />
+              {nextStatuses.map(s => (
+                <button key={s} className="btn" onClick={() => transition(s)}
+                  style={{ textTransform: 'capitalize' }}>
+                  → {s}
+                </button>
               ))}
             </div>
           </div>
         )}
-
-        {term.business_rules?.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs font-medium text-gray-500 mb-1.5">Business rules</p>
-            <ul className="space-y-1">
-              {term.business_rules.map((r, i) => (
-                <li key={i} className="text-sm text-gray-600 flex gap-2">
-                  <span className="text-gray-300 shrink-0">·</span> {r}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4 text-xs text-gray-400 border-t border-gray-100 pt-4 mt-2">
-          {term.approved_by && <span>Approved by: <span className="text-gray-600">{term.approved_by}</span></span>}
-          {term.source_system && <span>Source: <span className="text-gray-600">{term.source_system}</span></span>}
-          {term.document_id && <span>Document: <span className="text-gray-600">{term.document_id}</span></span>}
-          <span>Version: <span className="text-gray-600">v{term.version}</span></span>
-        </div>
       </div>
-
-      {nextStatuses.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="text-xs font-medium text-gray-500 mb-3">Transition status</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <input
-              value={actor}
-              onChange={e => setActor(e.target.value)}
-              placeholder="Your name (optional)"
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            {nextStatuses.map(s => (
-              <button
-                key={s}
-                onClick={() => transition(s)}
-                className="px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors capitalize
-                  border-gray-200 text-gray-700 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50"
-              >
-                → {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

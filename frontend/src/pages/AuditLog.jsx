@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
 import { api } from '../api/client'
+
+const ACTION_COLOR = {
+  published:  'var(--green)',
+  approved:   'var(--green)',
+  deprecated: 'var(--red)',
+  blocked:    'var(--red)',
+  drafted:    'var(--slate-d)',
+  harvested:  'var(--slate-d)',
+  review:     'var(--amber)',
+}
+
+function relativeTime(iso) {
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000)
+  if (s < 60)   return `${s}s ago`
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return new Date(iso).toLocaleDateString()
+}
 
 export default function AuditLog() {
   const [entries, setEntries] = useState([])
@@ -8,50 +25,86 @@ export default function AuditLog() {
 
   const load = () => {
     setLoading(true)
-    api.audit.list().then(setEntries).finally(() => setLoading(false))
+    api.audit.list(200).then(setEntries).finally(() => setLoading(false))
   }
-
   useEffect(() => { load() }, [])
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
+    <>
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Audit Log</h1>
-          <p className="text-sm text-gray-500">{entries.length} events recorded</p>
+          <h1>Audit Log</h1>
+          <div className="sub">{entries.length} events recorded · newest first</div>
         </div>
-        <button onClick={load} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
-          <RefreshCw size={16} />
-        </button>
+        <div className="actions">
+          <button className="btn" onClick={load} disabled={loading}><RefreshIcon /> Refresh</button>
+        </div>
       </div>
 
       {loading ? (
-        <p className="text-gray-400">Loading...</p>
+        <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading…</p>
       ) : entries.length === 0 ? (
-        <div className="border border-dashed border-gray-200 rounded-xl p-12 text-center text-gray-400">
-          No audit events yet.
+        <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-3)', border: '2px dashed var(--ice)', borderRadius: 'var(--r-lg)' }}>
+          No audit events yet. Run the pipeline to generate activity.
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
-          {entries.map(e => (
-            <div key={e.entry_id} className="px-5 py-3.5 flex items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-gray-900">{e.term_label}</span>
-                  <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{e.action}</span>
-                  {e.previous_status && e.new_status && (
-                    <span className="text-xs text-gray-400">{e.previous_status} → {e.new_status}</span>
-                  )}
-                </div>
-                {e.actor && <p className="text-xs text-gray-400 mt-0.5">by {e.actor}</p>}
-              </div>
-              <span className="text-xs text-gray-400 shrink-0">
-                {new Date(e.timestamp).toLocaleString()}
-              </span>
-            </div>
-          ))}
+        <div className="card">
+          <table className="issues">
+            <colgroup>
+              <col style={{ width: 26 }} />
+              <col style={{ width: '30%' }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: '25%' }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 80 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th />
+                <th>Term</th>
+                <th>Action</th>
+                <th>Transition</th>
+                <th>Actor</th>
+                <th>When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map(e => {
+                const dot = ACTION_COLOR[e.action] || 'var(--slate)'
+                return (
+                  <tr key={e.entry_id} style={{ cursor: 'default' }}>
+                    <td>
+                      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: dot }} />
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{e.term_label}</div>
+                      <div className="mono" style={{ color: 'var(--ink-3)', marginTop: 2 }}>
+                        {e.term_uri.split('/').pop()}
+                      </div>
+                    </td>
+                    <td>
+                      <span className="pill" style={{ textTransform: 'capitalize' }}>{e.action}</span>
+                    </td>
+                    <td style={{ color: 'var(--ink-2)' }}>
+                      {e.previous_status && e.new_status
+                        ? <span className="mono">{e.previous_status} → {e.new_status}</span>
+                        : <span style={{ color: 'var(--ink-3)' }}>—</span>}
+                    </td>
+                    <td style={{ color: 'var(--ink-2)' }}>{e.actor || '—'}</td>
+                    <td className="mono" style={{ color: 'var(--ink-3)' }}>{relativeTime(e.timestamp)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
-    </div>
+    </>
   )
 }
+
+const RefreshIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5a5.5 5.5 0 0 1 3.9 1.6L13.5 2v4h-4l1.6-1.6"/>
+  </svg>
+)

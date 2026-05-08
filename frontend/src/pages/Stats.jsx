@@ -1,77 +1,97 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
 import { api } from '../api/client'
 
 const STATUS_COLORS = {
-  candidate:  '#6366f1',
-  draft:      '#3b82f6',
-  review:     '#f59e0b',
-  published:  '#22c55e',
-  deprecated: '#ef4444',
+  candidate: 'var(--slate-d)', draft: 'var(--slate)',
+  review: 'var(--amber)', published: 'var(--green)', deprecated: 'var(--red)',
 }
 
 export default function Stats() {
-  const [stats, setStats] = useState(null)
+  const [stats,   setStats]   = useState(null)
   const [loading, setLoading] = useState(true)
 
   const load = () => {
     setLoading(true)
     api.stats.get().then(setStats).finally(() => setLoading(false))
   }
-
   useEffect(() => { load() }, [])
 
-  if (loading) return <p className="p-8 text-gray-400">Loading...</p>
-  if (!stats) return null
-
   return (
-    <div className="p-8 max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
+    <>
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Pipeline Stats</h1>
-          <p className="text-sm text-gray-500">{stats.total} terms total · {stats.recent_activity} audit events</p>
+          <h1>Pipeline Stats</h1>
+          <div className="sub">
+            {stats ? `${stats.total} terms total · ${stats.recent_activity} audit events` : 'Loading…'}
+          </div>
         </div>
-        <button onClick={load} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
-          <RefreshCw size={16} />
-        </button>
+        <div className="actions">
+          <button className="btn" onClick={load} disabled={loading}><RefreshIcon /> Refresh</button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <Card title="By Status">
-          {Object.entries(stats.by_status).map(([s, n]) => (
-            <Bar key={s} label={s} value={n} total={stats.total} color={STATUS_COLORS[s] || '#6b7280'} />
-          ))}
-        </Card>
-        <Card title="By Scheme">
-          {Object.entries(stats.by_scheme).map(([s, n]) => (
-            <Bar key={s} label={s} value={n} total={stats.total} color="#6366f1" />
-          ))}
-        </Card>
-      </div>
-    </div>
+      {loading ? (
+        <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading…</p>
+      ) : !stats ? null : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--gap)' }}>
+          <div className="card">
+            <div className="card-h"><h3>By Status</h3></div>
+            <div className="card-b">
+              <div className="bars">
+                {Object.entries(stats.by_status).map(([s, n]) => (
+                  <div key={s} className="bar-row">
+                    <div className="nm" style={{ textTransform: 'capitalize' }}>{s}</div>
+                    <div className="track">
+                      <div className="fill" style={{
+                        width: `${stats.total > 0 ? Math.round(n / stats.total * 100) : 0}%`,
+                        background: STATUS_COLORS[s] || 'var(--ink)',
+                      }} />
+                    </div>
+                    <div className="pc">
+                      {n} <span style={{ color: 'var(--ink-3)', fontWeight: 400 }}>
+                        ({stats.total > 0 ? Math.round(n / stats.total * 100) : 0}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-h">
+              <h3>By Scheme</h3>
+              <span className="meta mono">definition coverage %</span>
+            </div>
+            <div className="card-b">
+              {Object.keys(stats.by_scheme).length === 0 ? (
+                <p style={{ color: 'var(--ink-3)', fontSize: 12 }}>No scheme data yet.</p>
+              ) : (
+                <div className="bars">
+                  {Object.entries(stats.by_scheme)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([s, pct]) => (
+                      <div key={s} className={`bar-row${pct < 80 ? ' alert' : ''}`}>
+                        <div className="nm">{s}</div>
+                        <div className="track">
+                          <div className="fill" style={{ width: `${Math.min(pct, 100)}%` }} />
+                          <div className="threshold" style={{ left: '80%' }} />
+                        </div>
+                        <div className="pc">{pct}%</div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
-function Card({ title, children }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-4">{title}</p>
-      <div className="space-y-3">{children}</div>
-    </div>
-  )
-}
-
-function Bar({ label, value, total, color }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="capitalize text-gray-700">{label}</span>
-        <span className="text-gray-400 text-xs">{value} ({pct}%)</span>
-      </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  )
-}
+const RefreshIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5a5.5 5.5 0 0 1 3.9 1.6L13.5 2v4h-4l1.6-1.6"/>
+  </svg>
+)
