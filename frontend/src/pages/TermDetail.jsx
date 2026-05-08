@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 
 const TRANSITIONS = {
@@ -21,27 +21,40 @@ const STATUS_PILL = {
 const lcOrder = ['candidate', 'draft', 'review', 'published']
 
 export default function TermDetail() {
-  const { '*': uri } = useParams()
+  const [searchParams] = useSearchParams()
+  const uri = searchParams.get('uri')
   const navigate = useNavigate()
   const [term,    setTerm]    = useState(null)
+  const [error,   setError]   = useState(null)
   const [loading, setLoading] = useState(true)
   const [actor,   setActor]   = useState('')
 
   const load = () => {
-    setLoading(true)
-    api.terms.get(decodeURIComponent(uri)).then(setTerm).finally(() => setLoading(false))
+    if (!uri) { setLoading(false); return }
+    setLoading(true); setError(null)
+    api.terms.get(uri)
+      .then(setTerm)
+      .catch(e => setError(e.message || 'Failed to load term'))
+      .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [uri])
 
   const transition = async (newStatus) => {
     try {
-      await api.terms.transition(decodeURIComponent(uri), { new_status: newStatus, actor: actor || 'steward' })
+      await api.terms.transition(uri, { new_status: newStatus, actor: actor || 'steward' })
       load()
     } catch (e) { alert(e.message) }
   }
 
+  if (!uri)    return <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>No term URI provided.</p>
   if (loading) return <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading…</p>
-  if (!term)   return <p style={{ color: 'var(--red)', fontSize: 13 }}>Term not found.</p>
+  if (error)   return (
+    <div style={{ padding: '16px', background: 'var(--red-bg)', borderRadius: 'var(--r)', color: 'var(--red)', fontSize: 13, maxWidth: 500 }}>
+      <strong>Could not load term</strong><br />{error}<br />
+      <span style={{ color: 'var(--ink-3)', fontSize: 11, marginTop: 4, display: 'block' }}>URI: {uri}</span>
+    </div>
+  )
+  if (!term)   return <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>Term not found.</p>
 
   const nextStatuses = TRANSITIONS[term.lifecycle_status] || []
   const lcIdx = lcOrder.indexOf(term.lifecycle_status)
@@ -119,6 +132,47 @@ export default function TermDetail() {
             )}
           </div>
         </div>
+
+        {/* Taxonomy */}
+        {(term.broader_label || term.scheme_label) && (
+          <div className="card">
+            <div className="card-h"><h3>Taxonomy</h3></div>
+            <div className="card-b" style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px 16px', fontSize: 13 }}>
+              {term.broader_label && (<>
+                <span style={{ color: 'var(--ink-3)' }}>Broader concept</span>
+                <span className="mono" style={{ color: 'var(--ink-2)' }}>{term.broader_label}</span>
+              </>)}
+              {term.scheme_label && (<>
+                <span style={{ color: 'var(--ink-3)' }}>Scheme</span>
+                <span className="scheme-pill">{term.scheme_label}</span>
+              </>)}
+            </div>
+          </div>
+        )}
+
+        {/* Semantic relations */}
+        {term.relations?.length > 0 && (
+          <div className="card">
+            <div className="card-h"><h3>Semantic relations</h3><span className="meta mono">{term.relations.length}</span></div>
+            <div style={{ padding: '4px 0' }}>
+              {term.relations.map((r, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
+                  borderBottom: i < term.relations.length - 1 ? '1px solid var(--ice)' : 0,
+                  fontSize: 13,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+                  <span className="mono" style={{ color: 'var(--slate-d)' }}>{r.predicate}</span>
+                  <span style={{ color: 'var(--ink-3)' }}>→</span>
+                  <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{r.object_label}</span>
+                  {r.object_uri && (
+                    <span className="mono" style={{ color: 'var(--ink-3)', fontSize: 11 }}>{r.object_uri.split('/').pop()}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Metadata */}
         <div className="card">

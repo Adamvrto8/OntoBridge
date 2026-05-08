@@ -35,7 +35,7 @@ const NAV = [
   {
     label: 'Ontology',
     items: [
-      { to: '/glossary', label: 'Glossary',          countKey: 'glossary', icon: BookIcon },
+      { to: '/glossary', label: 'Glossary',                               icon: BookIcon },
       { to: '/graph',    label: 'Knowledge graph',                          icon: GraphIcon },
     ],
   },

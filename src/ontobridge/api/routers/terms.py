@@ -67,7 +67,7 @@ def transition_status(
 
     previous = term.lifecycle_status
     try:
-        updated = publisher.transition_status(term_id, new_status)
+        updated = publisher.transition_status(term_id, new_status, approved_by=body.actor)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

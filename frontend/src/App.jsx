@@ -39,7 +39,7 @@ export default function App() {
             <Route path="/graph"    element={<Graph />} />
             <Route path="/audit"    element={<AuditLog />} />
             <Route path="/miro"     element={<Miro />} />
-            <Route path="/terms/*"  element={<TermDetail />} />
+            <Route path="/terms"    element={<TermDetail />} />
           </Routes>
         </main>
       </div>

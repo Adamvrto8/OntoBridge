@@ -16,17 +16,27 @@ function Avatar({ name }) {
       display: 'inline-grid', placeItems: 'center',
       width: 22, height: 22, borderRadius: '50%',
       background: color, color: '#fff',
-      font: `500 10px var(--font-sans)`, flexShrink: 0,
+      font: '500 10px var(--font-sans)', flexShrink: 0,
     }}>
       {initials(name)}
     </span>
   )
 }
 
+const sel = {
+  height: 30, padding: '0 28px 0 10px', appearance: 'none',
+  border: '1px solid var(--ice)', borderRadius: 'var(--r)',
+  background: `var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238AABB8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center`,
+  font: '400 12.5px var(--font-sans)', color: 'var(--ink-2)', cursor: 'pointer', outline: 'none',
+  minWidth: 120,
+}
+
 export default function Glossary() {
-  const [terms,  setTerms]  = useState([])
-  const [search, setSearch] = useState('')
-  const [scheme, setScheme] = useState('all')
+  const [terms,      setTerms]      = useState([])
+  const [search,     setSearch]     = useState('')
+  const [filterScheme,   setFilterScheme]   = useState('')
+  const [filterApprover, setFilterApprover] = useState('')
+  const [filterVersion,  setFilterVersion]  = useState('')
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
@@ -35,18 +45,16 @@ export default function Glossary() {
     api.terms.list({ status: 'published' }).then(setTerms).finally(() => setLoading(false))
   }, [])
 
-  const schemeCounts = useMemo(() => {
-    const m = {}
-    terms.forEach(t => { const k = t.scheme_label || '—'; m[k] = (m[k] || 0) + 1 })
-    return m
-  }, [terms])
-
-  const schemes = useMemo(() =>
-    ['all', ...Object.keys(schemeCounts).sort((a, b) => schemeCounts[b] - schemeCounts[a])],
-    [schemeCounts])
+  // Unique option lists
+  const schemes   = useMemo(() => [...new Set(terms.map(t => t.scheme_label).filter(Boolean))].sort(), [terms])
+  const approvers = useMemo(() => [...new Set(terms.map(t => t.approved_by).filter(Boolean))].sort(), [terms])
+  const versions  = useMemo(() => [...new Set(terms.map(t => t.version))].sort((a, b) => a - b), [terms])
 
   const filtered = useMemo(() => {
-    let r = scheme === 'all' ? terms : terms.filter(t => t.scheme_label === scheme)
+    let r = terms
+    if (filterScheme)   r = r.filter(t => t.scheme_label === filterScheme)
+    if (filterApprover) r = r.filter(t => t.approved_by  === filterApprover)
+    if (filterVersion)  r = r.filter(t => String(t.version) === filterVersion)
     if (search.trim()) {
       const q = search.toLowerCase()
       r = r.filter(t =>
@@ -56,7 +64,16 @@ export default function Glossary() {
       )
     }
     return r
-  }, [terms, scheme, search])
+  }, [terms, search, filterScheme, filterApprover, filterVersion])
+
+  const hasFilters = filterScheme || filterApprover || filterVersion || search.trim()
+
+  const clearFilters = () => {
+    setFilterScheme('')
+    setFilterApprover('')
+    setFilterVersion('')
+    setSearch('')
+  }
 
   return (
     <>
@@ -65,7 +82,7 @@ export default function Glossary() {
           <h1>Glossary</h1>
           <div className="sub">
             {loading ? 'Loading…'
-              : `${terms.length} published term${terms.length !== 1 ? 's' : ''} across ${Object.keys(schemeCounts).length} concept scheme${Object.keys(schemeCounts).length !== 1 ? 's' : ''}. SKOS prefLabels, definitions, and approvers — the canonical view.`}
+              : `${terms.length} published term${terms.length !== 1 ? 's' : ''} across ${schemes.length} concept scheme${schemes.length !== 1 ? 's' : ''}. SKOS prefLabels, definitions, and approvers — the canonical view.`}
           </div>
         </div>
         <div className="actions">
@@ -78,9 +95,10 @@ export default function Glossary() {
         </div>
       </div>
 
-      {/* Search + count */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--gap)' }}>
-        <div style={{ position: 'relative', maxWidth: 340, flex: 1 }}>
+      {/* Search + filters row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'var(--gap)', flexWrap: 'wrap' }}>
+        {/* Search — untouched as requested */}
+        <div style={{ position: 'relative', width: 300 }}>
           <SearchIcon />
           <input
             value={search}
@@ -96,46 +114,69 @@ export default function Glossary() {
             onBlur={e  => e.target.style.borderColor = 'var(--ice)'}
           />
         </div>
+
+        <div style={{ width: 1, height: 20, background: 'var(--ice)' }} />
+
+        {/* Scheme filter */}
+        <div style={{ position: 'relative' }}>
+          <label style={{ position: 'absolute', top: -16, left: 2, font: '500 10px var(--font-sans)', color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+            Scheme
+          </label>
+          <select value={filterScheme} onChange={e => setFilterScheme(e.target.value)} style={{ ...sel, minWidth: 140, color: filterScheme ? 'var(--ink)' : 'var(--ink-3)' }}>
+            <option value="">All schemes</option>
+            {schemes.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        {/* Approved by filter */}
+        <div style={{ position: 'relative' }}>
+          <label style={{ position: 'absolute', top: -16, left: 2, font: '500 10px var(--font-sans)', color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+            Approved by
+          </label>
+          <select value={filterApprover} onChange={e => setFilterApprover(e.target.value)} style={{ ...sel, minWidth: 130, color: filterApprover ? 'var(--ink)' : 'var(--ink-3)' }}>
+            <option value="">All approvers</option>
+            {approvers.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+
+        {/* Version filter */}
+        <div style={{ position: 'relative' }}>
+          <label style={{ position: 'absolute', top: -16, left: 2, font: '500 10px var(--font-sans)', color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+            Version
+          </label>
+          <select value={filterVersion} onChange={e => setFilterVersion(e.target.value)} style={{ ...sel, minWidth: 100, color: filterVersion ? 'var(--ink)' : 'var(--ink-3)' }}>
+            <option value="">All versions</option>
+            {versions.map(v => <option key={v} value={String(v)}>v{v}</option>)}
+          </select>
+        </div>
+
+        {/* Clear + count */}
+        {hasFilters && (
+          <button className="btn ghost" style={{ height: 30, padding: '0 10px', fontSize: 12 }} onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
+
         {!loading && (
           <span style={{ color: 'var(--ink-3)', fontSize: 12, marginLeft: 'auto' }}>
             <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{filtered.length}</span>
-            {' / '}{scheme === 'all' ? terms.length : (schemeCounts[scheme] || 0)} shown
+            {' / '}{terms.length} shown
           </span>
         )}
       </div>
-
-      {/* Scheme chips */}
-      {!loading && schemes.length > 1 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 'var(--gap)' }}>
-          {schemes.map(s => {
-            const count = s === 'all' ? terms.length : (schemeCounts[s] || 0)
-            const on = scheme === s
-            return (
-              <button
-                key={s}
-                className={`chip${on ? ' on' : ''}`}
-                onClick={() => setScheme(s)}
-              >
-                {s === 'all' ? 'All schemes' : <span className="mono">{s}</span>}
-                <span className="ct">{count}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
 
       {/* Table */}
       {loading ? (
         <div className="card" style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-3)' }}>Loading…</div>
       ) : filtered.length === 0 ? (
         <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-3)', border: '2px dashed var(--ice)', borderRadius: 'var(--r-lg)' }}>
-          No published terms match your search.
+          No terms match your filters.{hasFilters && <> <button className="btn ghost" style={{ marginLeft: 8, height: 26, padding: '0 10px', fontSize: 12 }} onClick={clearFilters}>Clear all</button></>}
         </div>
       ) : (
         <div className="card" style={{ overflow: 'hidden' }}>
           <table className="issues">
             <colgroup>
-              <col style={{ width: '28%' }} />
+              <col style={{ width: '27%' }} />
               <col />
               <col style={{ width: 130 }} />
               <col style={{ width: 160 }} />
@@ -150,7 +191,7 @@ export default function Glossary() {
             </thead>
             <tbody>
               {filtered.map(t => (
-                <tr key={t.term_uri} onClick={() => navigate(`/terms/${encodeURIComponent(t.term_uri)}`)}>
+                <tr key={t.term_uri} onClick={() => navigate(`/terms?uri=${encodeURIComponent(t.term_uri)}`)}>
                   <td>
                     <div style={{ fontWeight: 500 }}>{t.preferred_label}</div>
                     <div className="mono" style={{ color: 'var(--ink-3)', marginTop: 2 }}>
@@ -163,7 +204,9 @@ export default function Glossary() {
                       : <span style={{ color: 'var(--ink-3)', fontStyle: 'italic' }}>No definition</span>}
                   </td>
                   <td>
-                    {t.scheme_label && <span className="scheme-pill">{t.scheme_label}</span>}
+                    {t.scheme_label
+                      ? <span className="scheme-pill" style={filterScheme ? { background: 'var(--ink)', color: '#fff' } : {}}>{t.scheme_label}</span>
+                      : <span style={{ color: 'var(--ink-3)' }}>—</span>}
                   </td>
                   <td>
                     {t.approved_by
@@ -183,7 +226,14 @@ export default function Glossary() {
       )}
 
       <div className="footer-bar">
-        <span>{filtered.length} of {terms.length} terms shown</span>
+        <span>{filtered.length} of {terms.length} published terms shown</span>
+        {hasFilters && (
+          <span style={{ color: 'var(--ink-3)' }}>
+            {filterScheme && `scheme: ${filterScheme}`}
+            {filterApprover && ` · approver: ${filterApprover}`}
+            {filterVersion && ` · v${filterVersion}`}
+          </span>
+        )}
       </div>
     </>
   )

@@ -64,7 +64,8 @@ class InMemoryPublisher(TermPublisher):
         return results
 
     def transition_status(
-        self, term_id: str, new_status: LifecycleStatus
+        self, term_id: str, new_status: LifecycleStatus,
+        approved_by: str | None = None,
     ) -> PublishedTerm:
         if term_id not in self._store:
             raise TermNotFoundError(term_id)
@@ -75,6 +76,7 @@ class InMemoryPublisher(TermPublisher):
                 f"Illegal transition {existing.lifecycle_status.value} -> "
                 f"{new_status.value} for term {term_id!r}"
             )
-        updated = replace(existing, lifecycle_status=new_status)
+        effective_approver = existing.approved_by or approved_by
+        updated = replace(existing, lifecycle_status=new_status, approved_by=effective_approver)
         self._store[term_id] = updated
         return deepcopy(updated)

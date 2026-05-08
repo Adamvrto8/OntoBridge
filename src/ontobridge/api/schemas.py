@@ -74,11 +74,12 @@ class TermDetail(TermSummary):
 
         relations = [
             RelationOut(
-                predicate=_last_segment(r.predicate),
-                object_label=r.object_label or _last_segment(r.object_uri),
-                object_uri=r.object_uri,
+                predicate=_last_segment(r.predicate_uri) or r.predicate_uri or "—",
+                object_label=r.object_label or "—",
+                object_uri=None,
             )
             for r in (et.relations or [])
+            if r.object_label
         ]
 
         rules = [br.rule for br in (et.business_rules or [])]

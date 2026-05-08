@@ -140,7 +140,8 @@ class SqlitePublisher(TermPublisher):
         return [pickle.loads(row[0]) for row in rows]
 
     def transition_status(
-        self, term_id: str, new_status: LifecycleStatus
+        self, term_id: str, new_status: LifecycleStatus,
+        approved_by: str | None = None,
     ) -> PublishedTerm:
         with self._conn() as conn:
             row = conn.execute(
@@ -155,7 +156,8 @@ class SqlitePublisher(TermPublisher):
                     f"Illegal transition {existing.lifecycle_status.value} → "
                     f"{new_status.value} for term {term_id!r}"
                 )
-            updated = replace(existing, lifecycle_status=new_status)
+            effective_approver = existing.approved_by or approved_by
+            updated = replace(existing, lifecycle_status=new_status, approved_by=effective_approver)
             conn.execute(
                 "UPDATE terms SET lifecycle=?, data=?, updated_at=? WHERE term_uri=?",
                 (new_status.value, pickle.dumps(updated), _utc_now(), term_id),

@@ -158,7 +158,7 @@ export default function Inbox() {
                   const sev = severityOf(t)
                   const lcIdx = lcOrder.indexOf(t.lifecycle_status ?? 'candidate')
                   return (
-                    <tr key={t.term_uri} onClick={() => navigate(`/terms/${encodeURIComponent(t.term_uri)}`)}>
+                    <tr key={t.term_uri} onClick={() => navigate(`/terms?uri=${encodeURIComponent(t.term_uri)}`)}>
                       <td>
                         <span className={`sev ${sev}`}>
                           <span className="d" />
