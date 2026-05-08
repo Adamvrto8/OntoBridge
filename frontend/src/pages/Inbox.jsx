@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ExternalLink, GitMerge, Plus, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { api } from '../api/client'
@@ -7,17 +7,8 @@ import MetricCard from '../components/MetricCard'
 import PipelineFunnel from '../components/PipelineFunnel'
 import LifecycleDonut from '../components/LifecycleDonut'
 import CoverageChart from '../components/CoverageChart'
-import StatusBadge from '../components/StatusBadge'
 
 const SEVERITY = ['All', 'Critical', 'High', 'Medium', 'Low']
-
-function severityOf(term) {
-  const conf = term.confidence ?? 0.5
-  if (conf < 0.4) return 'Critical'
-  if (conf < 0.6) return 'High'
-  if (conf < 0.8) return 'Medium'
-  return 'Low'
-}
 
 const SEV_DOT = {
   Critical: 'bg-red-500',
@@ -26,25 +17,45 @@ const SEV_DOT = {
   Low:      'bg-blue-400',
 }
 
+function severityOf(term) {
+  if (!term.definition || term.definition.trim().length === 0) return 'Critical'
+  if (term.definition.trim().length < 40) return 'High'
+  if (!term.scheme_label) return 'Medium'
+  return 'Low'
+}
+
+function timeAgo(iso) {
+  if (!iso) return null
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000)
+  if (diff < 60) return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
+
 export default function Inbox() {
   const [reviewTerms, setReviewTerms] = useState([])
   const [stats, setStats] = useState(null)
+  const [lastRun, setLastRun] = useState(null)
   const [activeTab, setActiveTab] = useState('All')
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     Promise.all([
       api.terms.list({ status: 'review' }),
       api.stats.get(),
-    ]).then(([terms, s]) => {
+      api.audit.list(1),
+    ]).then(([terms, s, audit]) => {
       setReviewTerms(terms)
       setStats(s)
+      const latest = Array.isArray(audit) ? audit[0] : null
+      setLastRun(latest?.timestamp ? timeAgo(latest.timestamp) : 'recently')
     }).finally(() => setLoading(false))
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
 
   const transition = async (uri, newStatus) => {
     try {
@@ -53,33 +64,37 @@ export default function Inbox() {
     } catch (e) { alert(e.message) }
   }
 
-  const published = stats?.by_status?.published ?? 0
-  const total = stats?.total ?? 0
+  const published  = stats?.by_status?.published ?? 0
+  const total      = stats?.total ?? 0
   const reviewCount = stats?.by_status?.review ?? 0
+  const draftCount  = stats?.by_status?.draft ?? 0
   const defCoverage = total > 0 ? Math.round((published / total) * 100) : 0
-
-  const filtered = activeTab === 'All'
-    ? reviewTerms
-    : reviewTerms.filter(t => severityOf(t) === activeTab)
 
   const sevCounts = SEVERITY.slice(1).reduce((acc, s) => {
     acc[s] = reviewTerms.filter(t => severityOf(t) === s).length
     return acc
   }, {})
 
+  const filtered = activeTab === 'All'
+    ? reviewTerms
+    : reviewTerms.filter(t => severityOf(t) === activeTab)
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <TopBar breadcrumb={['Workflow', 'Governance inbox']} />
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
-        {/* Page title + actions */}
+        {/* Header */}
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-semibold text-gray-900">Governance inbox</h1>
             <p className="text-xs text-gray-400 mt-0.5">Terms awaiting steward action. Sorted by severity, then age.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:border-gray-300 bg-white transition-colors">
+            <button
+              onClick={() => api.terms.exportCsv('review')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:border-gray-300 bg-white transition-colors"
+            >
               <ExternalLink size={12} /> Export turtle
             </button>
             <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:border-gray-300 bg-white transition-colors">
@@ -96,21 +111,22 @@ export default function Inbox() {
 
         {/* Metric cards */}
         <div className="grid grid-cols-6 gap-3">
-          <MetricCard label="Total nodes"       value={total}       trend={2}  trendLabel="/ 7d" color="#6366f1" />
-          <MetricCard label="Definition Cov."   value={`${defCoverage}%`} trend={1} trendLabel="pt" color="#6366f1" />
-          <MetricCard label="Open issues"       value={reviewCount} trend={reviewCount > 0 ? 1 : 0} trendLabel="/ 24h" color="#ef4444" negative />
-          <MetricCard label="Pending review"    value={reviewCount} trend={-1} trendLabel="/ 24h" color="#6366f1" />
-          <MetricCard label="Audit events 24h"  value={stats?.recent_activity ?? 0} color="#6366f1" />
-          <MetricCard label="Pipeline runs"     value={published}   trend={98} trendLabel="% pass" color="#22c55e" />
+          <MetricCard label="Total nodes"      value={total}              trend={42}        trendLabel="/ 7d"   color="#6366f1" />
+          <MetricCard label="Definition Cov."  value={`${defCoverage}%`} trend={1.2}       trendLabel="pt"     color="#6366f1" />
+          <MetricCard label="Open issues"      value={reviewCount}        trend={5}         trendLabel="/ 24h"  color="#ef4444" negative />
+          <MetricCard label="Pending review"   value={reviewCount}        trend={-3}        trendLabel="/ 24h"  color="#6366f1" />
+          <MetricCard label="Audit events 24h" value={stats?.recent_activity ?? 0}          color="#6366f1" />
+          <MetricCard label="Pipeline runs"    value={published}          trend={98}        trendLabel="% pass" color="#22c55e" />
         </div>
 
         {/* Pipeline funnel */}
-        <PipelineFunnel total={total} published={published} lastRun="just now" />
+        <PipelineFunnel total={total} published={published} lastRun={lastRun} />
 
-        {/* 3-column: coverage | donut | mini graph */}
+        {/* 3-column: coverage | donut | graph */}
         <div className="grid grid-cols-3 gap-4">
           <CoverageChart byScheme={stats?.by_scheme ?? {}} />
           <LifecycleDonut byStatus={stats?.by_status ?? {}} total={total} />
+
           <div className="bg-white border border-gray-100 rounded-xl p-5 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Knowledge graph</p>
@@ -132,7 +148,7 @@ export default function Inbox() {
               </div>
             </div>
             <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
-              {[['Hub class','bg-gray-800'],['Concept','bg-gray-400'],['Conflict','bg-red-400']].map(([l,c]) => (
+              {[['Hub class', 'bg-gray-800'], ['Concept', 'bg-gray-400'], ['Conflict', 'bg-red-400']].map(([l, c]) => (
                 <div key={l} className="flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full ${c}`} />
                   <span className="text-[10px] text-gray-400">{l}</span>
@@ -147,14 +163,18 @@ export default function Inbox() {
           {/* Tabs */}
           <div className="flex items-center gap-0 border-b border-gray-100 px-5 pt-4">
             {[
-              { label: 'Open issues', count: reviewTerms.length },
-              { label: 'My queue',    count: 0 },
-              { label: 'Watching',    count: 0 },
-            ].map(({ label, count }) => (
+              { label: 'Open issues', count: reviewTerms.length, tab: 'All' },
+              { label: 'My queue',    count: 0,                  tab: 'queue' },
+              { label: 'Watching',    count: 0,                  tab: 'watching' },
+            ].map(({ label, count, tab }) => (
               <button
                 key={label}
-                onClick={() => setActiveTab('All')}
-                className="mr-6 pb-3 text-sm font-medium border-b-2 border-gray-900 text-gray-900 flex items-center gap-1.5"
+                onClick={() => setActiveTab(tab === 'All' ? 'All' : activeTab)}
+                className={`mr-6 pb-3 text-sm font-medium border-b-2 flex items-center gap-1.5 ${
+                  activeTab === tab || (tab === 'All' && SEVERITY.includes(activeTab))
+                    ? 'border-gray-900 text-gray-900'
+                    : 'border-transparent text-gray-400'
+                }`}
               >
                 {label}
                 {count > 0 && (
@@ -230,12 +250,17 @@ export default function Inbox() {
                         <p className="text-[10px] text-gray-300">GOV · {t.scheme_label || 'unclassified'}</p>
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex gap-1">
-                          {['—', '—', '—'].map((d, i) => (
-                            <span key={i} className="w-4 h-1.5 rounded-full bg-gray-200" />
+                        <div className="flex gap-1 mb-1">
+                          {['candidate', 'draft', 'review'].map(s => (
+                            <span
+                              key={s}
+                              className={`w-4 h-1.5 rounded-full ${
+                                t.lifecycle_status === s ? 'bg-indigo-400' : 'bg-gray-200'
+                              }`}
+                            />
                           ))}
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">{t.lifecycle_status}</p>
+                        <p className="text-[10px] text-gray-400">{t.lifecycle_status}</p>
                       </td>
                       <td className="px-3 py-3">
                         <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono">
@@ -253,6 +278,7 @@ export default function Inbox() {
                           <button
                             onClick={() => transition(t.term_uri, 'draft')}
                             className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
+                            title="Reject — send back to draft"
                           >
                             <XCircle size={14} />
                           </button>

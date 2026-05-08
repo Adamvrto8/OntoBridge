@@ -15,7 +15,19 @@ def render_miro(ctx: DashboardContext) -> None:
 
     url = ctx.config.miro_board_url
     if url:
-        components.iframe(url, height=600, scrolling=True)
+        st.markdown(
+            f"""
+            <iframe
+              width="100%" height="600"
+              src="{url}"
+              frameborder="0"
+              scrolling="no"
+              allow="fullscreen; clipboard-read; clipboard-write"
+              allowfullscreen>
+            </iframe>
+            """,
+            unsafe_allow_html=True,
+        )
         st.caption(f"Embedded board: {url}")
     else:
         st.info(

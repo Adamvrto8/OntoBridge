@@ -21,8 +21,10 @@ class TermSummary(BaseModel):
     def from_published(cls, t) -> "TermSummary":
         et = t.enriched_term
         hr = et.harvest_record
-        scheme_uri = getattr(et.taxonomy_placement, "broader_uri", None) if et.taxonomy_placement else None
+        tp = et.taxonomy_placement
+        scheme_uri = tp.broader_concept_uri if tp else None
         scheme_label = _last_segment(scheme_uri) if scheme_uri else None
+        sr = hr.source_ref if hr else None
         return cls(
             term_uri=t.term_uri,
             preferred_label=et.preferred_label or "",
@@ -32,7 +34,7 @@ class TermSummary(BaseModel):
             scheme_label=scheme_label,
             approved_by=t.approved_by,
             version=t.version,
-            source_system=hr.source_system if hr else None,
+            source_system=sr.source_system if sr else None,
         )
 
 
@@ -61,8 +63,9 @@ class TermDetail(TermSummary):
         et = t.enriched_term
         hr = et.harvest_record
         tp = et.taxonomy_placement
-        scheme_uri = getattr(tp, "broader_uri", None) if tp else None
+        scheme_uri = tp.broader_concept_uri if tp else None
         scheme_label = _last_segment(scheme_uri) if scheme_uri else None
+        sr = hr.source_ref if hr else None
 
         alt_labels = [
             cl.text for cl in et.candidate_labels
@@ -89,13 +92,13 @@ class TermDetail(TermSummary):
             scheme_label=scheme_label,
             approved_by=t.approved_by,
             version=t.version,
-            source_system=hr.source_system if hr else None,
+            source_system=sr.source_system if sr else None,
             alt_labels=alt_labels,
-            broader_uri=getattr(tp, "broader_uri", None) if tp else None,
-            broader_label=_last_segment(getattr(tp, "broader_uri", None)) if tp else None,
+            broader_uri=tp.broader_concept_uri if tp else None,
+            broader_label=_last_segment(tp.broader_concept_uri) if tp else None,
             business_rules=rules,
             relations=relations,
-            document_id=hr.document_id if hr else None,
+            document_id=sr.document_id if sr else None,
             published_at=t.published_at,
         )
 

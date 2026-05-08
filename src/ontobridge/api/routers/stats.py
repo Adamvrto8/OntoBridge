@@ -14,18 +14,23 @@ def get_stats(publisher: PublisherDep, audit: AuditDep):
     terms = publisher.search_terms("")
 
     by_status: dict[str, int] = {s.value: 0 for s in LifecycleStatus}
-    by_scheme: dict[str, int] = {}
+    scheme_total: dict[str, int] = {}
+    scheme_with_def: dict[str, int] = {}
 
     for t in terms:
         by_status[t.lifecycle_status.value] = by_status.get(t.lifecycle_status.value, 0) + 1
         tp = t.enriched_term.taxonomy_placement
-        scheme = None
-        if tp:
-            uri = getattr(tp, "broader_uri", None)
-            if uri:
-                scheme = uri.rstrip("/").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
-        label = scheme or "Uncategorised"
-        by_scheme[label] = by_scheme.get(label, 0) + 1
+        label = "Uncategorised"
+        if tp and tp.scheme_uri:
+            label = tp.scheme_uri.rstrip("/").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+        scheme_total[label] = scheme_total.get(label, 0) + 1
+        if t.enriched_term.definition:
+            scheme_with_def[label] = scheme_with_def.get(label, 0) + 1
+
+    by_scheme = {
+        label: round(scheme_with_def.get(label, 0) / total * 100)
+        for label, total in scheme_total.items()
+    }
 
     return StatsOut(
         total=len(terms),
