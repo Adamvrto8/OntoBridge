@@ -42,3 +42,6 @@ examples/output/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+
+# FIBO ontology directory
+fibo-master/

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from ontobridge.api.deps import AuditDep, OntologyDep, PublisherDep
 from ontobridge.api.schemas import PipelineRunResponse, TermSummary
+from ontobridge.agents.fibo import FiboIndex, FiboMatcher
 from ontobridge.agents.harvester.agent import HarvesterAgent
 from ontobridge.batch import BatchPipelineRunner
 
@@ -20,6 +21,27 @@ def _build_backend(backend: str, model: str):
         return AnthropicBackend(model=model)
     from ontobridge.agents.ner.backend import OllamaBackend
     return OllamaBackend(model=model)
+
+
+def _find_fibo_paths() -> list[Path]:
+    repo_root = Path(__file__).resolve().parents[4]
+    fibo_dir = repo_root / "fibo-master" / "fibo-master"
+    if not fibo_dir.exists() or not fibo_dir.is_dir():
+        return []
+    return [
+        path
+        for path in fibo_dir.rglob("*")
+        if path.suffix.lower() in {".ttl", ".rdf", ".owl", ".xml", ".nt", ".jsonld"}
+    ]
+
+
+def _build_fibo_matcher() -> FiboMatcher | None:
+    paths = _find_fibo_paths()
+    if not paths:
+        return None
+
+    index = FiboIndex.from_paths(paths)
+    return FiboMatcher(index)
 
 
 @router.post("/run", response_model=PipelineRunResponse)
@@ -35,11 +57,15 @@ async def run_pipeline(
     llm_backend: str = Form(default="ollama"),
     llm_model: str = Form(default="gemma4:26b"),
 ):
-    harvester = HarvesterAgent()
+    fibo_matcher = _build_fibo_matcher()
+    harvester = HarvesterAgent(fibo_matcher=fibo_matcher)
     if use_llm_ner:
         try:
             from ontobridge.agents.ner.extractor import LLMNerExtractor
-            harvester = HarvesterAgent(extractor=LLMNerExtractor(_build_backend(llm_backend, llm_model)))
+            harvester = HarvesterAgent(
+                extractor=LLMNerExtractor(_build_backend(llm_backend, llm_model)),
+                fibo_matcher=fibo_matcher,
+            )
         except (ImportError, ValueError) as e:
             raise HTTPException(status_code=422, detail=str(e))
 
