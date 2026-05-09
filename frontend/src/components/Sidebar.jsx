@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 
 /* ── Icons (must be declared before NAV references them) ─────────────────── */
 const ic = (d) => () => (
@@ -81,9 +81,11 @@ const Logo = () => (
 export default function Sidebar({ counts = {} }) {
   return (
     <aside className="side">
-      <div className="brand">
-        <Logo />
-      </div>
+      <Link to="/" style={{ textDecoration: 'none' }}>
+        <div className="brand" style={{ cursor: 'pointer' }}>
+          <Logo />
+        </div>
+      </Link>
       <nav className="nav">
         {NAV.map(({ label, items }) => (
           <div key={label}>
