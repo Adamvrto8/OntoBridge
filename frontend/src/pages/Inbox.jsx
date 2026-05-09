@@ -9,19 +9,16 @@ import CoverageChart from '../components/CoverageChart'
 const SEV_FILTERS = ['all', 'crit', 'high', 'med', 'low']
 const SEV_LABEL   = { all: 'All', crit: 'Critical', high: 'High', med: 'Medium', low: 'Low' }
 
-function severityOf(term) {
-  if (!term.definition || term.definition.trim().length === 0) return 'crit'
-  if (term.definition.trim().length < 40) return 'high'
-  if (!term.scheme_label) return 'med'
-  return 'low'
-}
+// Use severity from API (governance recommended_action)
+function severityOf(term) { return term.severity || 'low' }
 
 function timeAgo(iso) {
   if (!iso) return null
   const s = Math.floor((Date.now() - new Date(iso)) / 1000)
-  if (s < 60) return `${s}s ago`
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`
-  return `${Math.floor(s / 3600)}h ago`
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  if (s < 86400) return `${Math.floor(s / 3600)}h`
+  return `${Math.floor(s / 86400)}d`
 }
 
 const lcOrder = ['candidate', 'draft', 'review', 'published']
@@ -200,12 +197,14 @@ export default function Inbox() {
             <table className="issues">
               <colgroup>
                 {bulkMode && <col style={{ width: 40 }} />}
-                <col style={{ width: 110 }} />
-                <col style={{ width: '26%' }} />
+                <col style={{ width: 100 }} />
                 <col style={{ width: '22%' }} />
-                <col style={{ width: 180 }} />
+                <col style={{ width: '24%' }} />
+                <col style={{ width: 170 }} />
                 <col style={{ width: 110 }} />
-                <col style={{ width: 90 }} />
+                <col style={{ width: 60 }} />
+                <col style={{ width: 50 }} />
+                <col style={{ width: 80 }} />
               </colgroup>
               <thead>
                 <tr>
@@ -220,14 +219,16 @@ export default function Inbox() {
                     </th>
                   )}
                   <th>Severity</th><th>Term</th><th>Issue · rule</th>
-                  <th>Lifecycle</th><th>Domain</th><th />
+                  <th>Lifecycle</th><th>Domain</th><th>Conf.</th><th>Age</th><th />
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(t => {
-                  const sev   = severityOf(t)
-                  const lcIdx = lcOrder.indexOf(t.lifecycle_status ?? 'candidate')
+                  const sev     = severityOf(t)
+                  const lcIdx   = lcOrder.indexOf(t.lifecycle_status ?? 'candidate')
                   const isSelected = selected.has(t.term_uri)
+                  const confPct = t.confidence != null ? Math.round(t.confidence * 100) : null
+                  const age     = t.harvested_at ? timeAgo(t.harvested_at) : null
 
                   return (
                     <tr
@@ -260,9 +261,11 @@ export default function Inbox() {
                         </div>
                       </td>
                       <td>
-                        <div>Pending governance review</div>
+                        <div style={{ color: 'var(--ink)' }}>
+                          {t.issue_type || 'Pending governance review'}
+                        </div>
                         <div className="mono" style={{ color: 'var(--ink-3)', marginTop: 2 }}>
-                          GOV · {t.scheme_label || 'unclassified'}
+                          {t.issue_rule || `GOV · ${t.scheme_label || 'unclassified'}`}
                         </div>
                       </td>
                       <td>
@@ -275,6 +278,18 @@ export default function Inbox() {
                       </td>
                       <td>
                         <span className="scheme-pill">{t.scheme_label || '—'}</span>
+                      </td>
+                      <td className="mono" style={{
+                        color: confPct == null ? 'var(--ink-3)'
+                             : confPct >= 80 ? 'var(--green)'
+                             : confPct >= 60 ? 'var(--amber)'
+                             : 'var(--red)',
+                        fontSize: 12,
+                      }}>
+                        {confPct != null ? `${confPct}%` : '—'}
+                      </td>
+                      <td className="mono" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                        {age || '—'}
                       </td>
                       <td onClick={e => e.stopPropagation()} style={{ textAlign: 'right' }}>
                         {!bulkMode && (
