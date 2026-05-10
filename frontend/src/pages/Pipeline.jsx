@@ -9,6 +9,7 @@ export default function Pipeline() {
   const [useLlmDef,  setUseLlmDef]  = useState(false)
   const [llmBackend, setLlmBackend] = useState('anthropic')
   const [llmModel,   setLlmModel]   = useState('claude-haiku-4-5-20251001')
+  const [llmApiKey,  setLlmApiKey]  = useState('')
   const [result,     setResult]     = useState(null)
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState(null)
@@ -26,6 +27,7 @@ export default function Pipeline() {
     fd.append('use_llm_def', useLlmDef)
     fd.append('llm_backend', llmBackend)
     fd.append('llm_model', llmModel)
+    if (llmApiKey.trim()) fd.append('llm_api_key', llmApiKey.trim())
     try { setResult(await api.pipeline.run(fd)) }
     catch (e) { setError(e.message) }
     finally { setLoading(false) }
@@ -89,11 +91,25 @@ export default function Pipeline() {
                   <Radio label="Ollama (local)" value="ollama"    current={llmBackend} onChange={setLlmBackend} />
                 </div>
                 {llmBackend === 'anthropic' ? (
-                  <select value={llmModel} onChange={e => setLlmModel(e.target.value)} style={inputStyle}>
-                    <option value="claude-haiku-4-5-20251001">claude-haiku (fast)</option>
-                    <option value="claude-sonnet-4-6">claude-sonnet (better)</option>
-                    <option value="claude-opus-4-7">claude-opus (best)</option>
-                  </select>
+                  <>
+                    <select value={llmModel} onChange={e => setLlmModel(e.target.value)} style={inputStyle}>
+                      <option value="claude-haiku-4-5-20251001">claude-haiku (fast)</option>
+                      <option value="claude-sonnet-4-6">claude-sonnet (better)</option>
+                      <option value="claude-opus-4-7">claude-opus (best)</option>
+                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ font: '500 11px var(--font-sans)', color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        API Key <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(leave blank to use ANTHROPIC_API_KEY env var)</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={llmApiKey}
+                        onChange={e => setLlmApiKey(e.target.value)}
+                        placeholder="sk-ant-…"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </>
                 ) : (
                   <input value={llmModel} onChange={e => setLlmModel(e.target.value)}
                     placeholder="e.g. llama3.2:1b" style={inputStyle} />

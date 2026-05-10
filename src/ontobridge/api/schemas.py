@@ -133,7 +133,7 @@ class TermDetail(TermSummary):
             RelationOut(
                 predicate=_last_segment(r.predicate_uri) or r.predicate_uri or "—",
                 object_label=r.object_label or "—",
-                object_uri=None,
+                object_uri=getattr(r, "object_uri", None),
             )
             for r in (et.relations or [])
             if r.object_label

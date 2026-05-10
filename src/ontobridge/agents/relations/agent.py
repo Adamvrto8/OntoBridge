@@ -9,8 +9,10 @@ from ontobridge.agents.relations.extractor import (
 from ontobridge.agents.relations.lexicon import InverseVerbLexicon
 from ontobridge.models.enrichment import EnrichedTerm, SemanticRelation
 from ontobridge.models.enums import RelationStatus
+from ontobridge.models.fibo import FIBOMatch
 
 UNRESOLVED_VERB_CONFIDENCE = 0.3
+_SKOS_CLOSE_MATCH = "http://www.w3.org/2004/02/skos/core#closeMatch"
 
 
 class RelationsAgent:
@@ -39,7 +41,21 @@ class RelationsAgent:
         return [self._to_relation(t, subject_uri) for t in triples]
 
     def apply(self, term: EnrichedTerm) -> EnrichedTerm:
-        term.relations = self.evaluate(term)
+        subject_uri = self._resolve_subject_uri(term)
+        if subject_uri is None:
+            raise ValueError(
+                "EnrichedTerm has no resolvable subject URI — Relations agent needs "
+                "either match_result.target_uri, taxonomy_placement.domain_prefix, or "
+                "candidate_labels to anchor the subject."
+            )
+        text = self._collect_text(term)
+        relations: list[SemanticRelation] = []
+        if text:
+            triples = self.extractor.extract(text, default_subject=term.preferred_label)
+            relations = [self._to_relation(t, subject_uri) for t in triples]
+        if term.fibo_match:
+            relations.append(self._fibo_relation(term.fibo_match, subject_uri))
+        term.relations = relations
         return term
 
     def _resolve_subject_uri(self, term: EnrichedTerm) -> str | None:
@@ -60,6 +76,20 @@ class RelationsAgent:
             if ctx.paragraph:
                 parts.append(ctx.paragraph)
         return " ".join(parts).strip()
+
+    @staticmethod
+    def _fibo_relation(fibo_match: FIBOMatch, subject_uri: str) -> SemanticRelation:
+        label = fibo_match.uri.rstrip("/").rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+        return SemanticRelation(
+            subject_uri=subject_uri,
+            predicate_uri=_SKOS_CLOSE_MATCH,
+            object_label=label or fibo_match.uri,
+            object_uri=fibo_match.uri,
+            inverse_predicate_uri=_SKOS_CLOSE_MATCH,
+            verb="closeMatch",
+            confidence=0.9,
+            status=RelationStatus.FIBO_MATCH,
+        )
 
     def _to_relation(self, triple: SVOTriple, subject_uri: str) -> SemanticRelation:
         lookup = self.lexicon.lookup(triple.verb)
