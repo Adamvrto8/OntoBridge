@@ -33,12 +33,16 @@ _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z\-]*")
 _LEADING_OBJ_FILLERS = frozenset({"and", "or", "then", "also", "to"})
 _TRAILING_OBJ_FILLERS = frozenset({"and", "or", "the", "a", "an"})
 
-# Default verb vocabulary the regex extractor recognises:
-#   - lexicon verbs from the v0.1 ontology (so resolved relations emerge)
-#   - common policy-doc verbs that aren't in the lexicon (so 'unresolved_verb'
-#     can be flagged rather than silently dropped)
+# Single-word determiners: if one of these is the only text before a vocab
+# word, the vocab word is being used as a noun ("A record of…"), not a verb.
+_BARE_DETERMINERS = frozenset({"a", "an", "the", "this", "that", "these", "those"})
+
+# Max tokens allowed in an extracted object phrase. Longer spans are almost
+# always a sign the "verb" was actually a noun and the parser went off the rails.
+_MAX_OBJ_TOKENS = 7
+
 DEFAULT_VERB_VOCAB: frozenset[str] = frozenset({
-    # original lexicon verbs
+    # original lexicon verbs (resolve to ontology property URIs)
     "holds", "hold",
     "submits", "submit",
     "uses", "use",
@@ -47,40 +51,28 @@ DEFAULT_VERB_VOCAB: frozenset[str] = frozenset({
     "produces", "produce",
     "governs", "govern",
     "triggers", "trigger",
-    "processes", "process",
     "creates", "create",
     "validates", "validate",
     "manages", "manage",
     "approves", "approve",
     "rejects", "reject",
-    "reviews", "review",
-    "issues", "issue",
     "verifies", "verify",
-    "monitors", "monitor",
     "assesses", "assess",
     "calculates", "calculate",
     "determines", "determine",
     "generates", "generate",
     "owns", "own",
-    # common banking/document definition verbs
+    # banking/document verbs — kept only where the word is unambiguously
+    # a verb and not commonly a standalone noun in banking prose
     "allows", "allow",
     "enables", "enable",
     "provides", "provide",
     "contains", "contain",
     "stores", "store",
-    "accesses", "access",
-    "displays", "display",
-    "filters", "filter",
     "retrieves", "retrieve",
     "sends", "send",
     "receives", "receive",
-    "links", "link",
     "connects", "connect",
-    "tracks", "track",
-    "records", "record",
-    "shows", "show",
-    "supports", "support",
-    "handles", "handle",
     "includes", "include",
     "represents", "represent",
     "defines", "define",
@@ -90,28 +82,32 @@ DEFAULT_VERB_VOCAB: frozenset[str] = frozenset({
     "initiates", "initiate",
     "authorizes", "authorize",
     "authenticates", "authenticate",
-    "transfers", "transfer",
     "applies", "apply",
     "enforces", "enforce",
-    "controls", "control",
-    "limits", "limit",
     "restricts", "restrict",
     "protects", "protect",
     "notifies", "notify",
-    "alerts", "alert",
-    "reports", "report",
     "aggregates", "aggregate",
     "consolidates", "consolidate",
-    "associates", "associate",
     "assigns", "assign",
-    "grants", "grant",
     "locates", "locate",
-    "downloads", "download",
-    "uploads", "upload",
     "captures", "capture",
     "extracts", "extract",
-    "formats", "format",
-    "schedules", "schedule",
+    "filters", "filter",
+    "views", "view",
+    "downloads", "download",
+    "uploads", "upload",
+    "shows", "show",
+    "supports", "support",
+    "handles", "handle",
+    "tracks", "track",
+    "links", "link",
+    "accesses", "access",
+    # removed: record/records, process/processes, review/reviews,
+    # issue/issues, display/displays, report/reports, monitor/monitors,
+    # control/controls, limit/limits, alert/alerts, format/formats,
+    # schedule/schedules, transfer/transfers, grant/grants, associate/associates
+    # — all predominantly used as nouns in banking definitions
 })
 
 
@@ -163,8 +159,17 @@ class RegexHeuristicExtractor(SVOExtractor):
 
         first = verb_indices[0]
         leading = " ".join(tokens[:first]).strip()
-        sentence_subject = leading or (default_subject or "")
-        if not sentence_subject:
+
+        # If the only text before the first vocab word is a bare determiner
+        # ("A record of…", "The display that…"), the word is a noun, not a verb.
+        # Use the term label as subject and skip that false verb entirely.
+        if leading.casefold() in _BARE_DETERMINERS:
+            sentence_subject = default_subject or ""
+            verb_indices = verb_indices[1:]
+        else:
+            sentence_subject = leading or (default_subject or "")
+
+        if not sentence_subject or not verb_indices:
             return []
 
         triples: list[SVOTriple] = []
@@ -179,7 +184,7 @@ class RegexHeuristicExtractor(SVOExtractor):
                 obj_tokens = obj_tokens[1:]
             while obj_tokens and obj_tokens[-1].casefold() in _TRAILING_OBJ_FILLERS:
                 obj_tokens = obj_tokens[:-1]
-            if not obj_tokens:
+            if not obj_tokens or len(obj_tokens) > _MAX_OBJ_TOKENS:
                 continue
             triples.append(
                 SVOTriple(
