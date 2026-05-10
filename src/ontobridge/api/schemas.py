@@ -139,7 +139,7 @@ class TermDetail(TermSummary):
             if r.object_label
         ]
 
-        rules = [br.rule for br in (et.business_rules or [])]
+        rules = [br.rule_text for br in (et.business_rules or [])]
 
         return cls(
             term_uri=t.term_uri,

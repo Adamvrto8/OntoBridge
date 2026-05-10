@@ -31,7 +31,7 @@ _CLAUSE_CONNECTOR = re.compile(
 _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z\-]*")
 
 _LEADING_OBJ_FILLERS = frozenset({"and", "or", "then", "also", "to"})
-_TRAILING_OBJ_FILLERS = frozenset({"and", "or", "the", "a", "an"})
+_TRAILING_OBJ_FILLERS = frozenset({"and", "or", "the", "a", "an", "to"})
 
 # Single-word determiners: if one of these is the only text before a vocab
 # word, the vocab word is being used as a noun ("A record of…"), not a verb.
@@ -51,6 +51,7 @@ DEFAULT_VERB_VOCAB: frozenset[str] = frozenset({
     "produces", "produce",
     "governs", "govern",
     "triggers", "trigger",
+    "processes",           # "process" (noun form) removed; "processes" (verb) kept
     "creates", "create",
     "validates", "validate",
     "manages", "manage",
@@ -102,7 +103,8 @@ DEFAULT_VERB_VOCAB: frozenset[str] = frozenset({
     "handles", "handle",
     "tracks", "track",
     "links", "link",
-    "accesses", "access",
+    # "accesses"/"access" removed — almost always a noun in banking:
+    # "access to account", "customer access", "provides access to X"
     # removed: record/records, process/processes, review/reviews,
     # issue/issues, display/displays, report/reports, monitor/monitors,
     # control/controls, limit/limits, alert/alerts, format/formats,

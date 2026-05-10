@@ -156,6 +156,14 @@ class HarvesterAgent:
             term.policy_context = [_policy_context_from_record(record)]
             if self.fibo_matcher is not None:
                 term.fibo_match = self.fibo_matcher.match(term.preferred_label, term.definition)
+                if term.fibo_match and term.fibo_match.alt_labels:
+                    existing = {cl.text.casefold() for cl in term.candidate_labels}
+                    for alt in term.fibo_match.alt_labels:
+                        if alt.casefold() not in existing:
+                            term.candidate_labels.append(
+                                CandidateLabel(text=alt, confidence=0.7)
+                            )
+                            existing.add(alt.casefold())
             terms.append(term)
         return terms
 

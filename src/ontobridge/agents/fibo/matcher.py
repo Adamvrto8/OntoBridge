@@ -19,4 +19,10 @@ class FiboMatcher:
 
         uri = sorted(uris)[0]
         expected_definition = self.index.uri_to_definition.get(uri)
-        return FIBOMatch(uri=uri, expected_definition=expected_definition)
+        alt_labels = self.index.alt_labels_by_uri.get(uri, [])
+
+        return FIBOMatch(
+            uri=uri,
+            expected_definition=expected_definition,
+            alt_labels=list(alt_labels),
+        )
