@@ -131,7 +131,7 @@ class TermDetail(TermSummary):
 
         relations = [
             RelationOut(
-                predicate=_last_segment(r.predicate_uri) or r.predicate_uri or "—",
+                predicate=_last_segment(r.predicate_uri) or r.predicate_uri or getattr(r, "verb", None) or "—",
                 object_label=r.object_label or "—",
                 object_uri=getattr(r, "object_uri", None),
             )
