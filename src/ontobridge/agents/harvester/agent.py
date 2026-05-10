@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Sequence
 
 from ontobridge.agents.definition.agent import DefinitionAgent
+from ontobridge.agents.fibo.matcher import FiboMatcher
 from ontobridge.agents.harvester.extractors.pattern import PatternTermExtractor
 from ontobridge.agents.harvester.protocols import DocumentReader, TermExtractor
 from ontobridge.agents.harvester.readers.catalog import CatalogReader
@@ -74,10 +75,12 @@ class HarvesterAgent:
         readers: Sequence[DocumentReader] | None = None,
         extractor: TermExtractor | None = None,
         definition_agent: DefinitionAgent | None = None,
+        fibo_matcher: FiboMatcher | None = None,
     ) -> None:
         self.readers: list[DocumentReader] = list(readers) if readers else _default_readers()
         self.extractor: TermExtractor = extractor or PatternTermExtractor()
         self.definition: DefinitionAgent = definition_agent or DefinitionAgent()
+        self.fibo_matcher = fibo_matcher
 
     # ------------------------------------------------------------------
     # Primary API
@@ -151,6 +154,8 @@ class HarvesterAgent:
                 ]
             term.definition = self.definition.extract(record, label=label or None)
             term.policy_context = [_policy_context_from_record(record)]
+            if self.fibo_matcher is not None:
+                term.fibo_match = self.fibo_matcher.match(term.preferred_label, term.definition)
             terms.append(term)
         return terms
 

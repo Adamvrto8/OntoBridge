@@ -86,20 +86,19 @@ class AnthropicBackend:
                 "Anthropic API key not found. Set the ANTHROPIC_API_KEY "
                 "environment variable or pass api_key= explicitly."
             )
-        self._client = None  # lazy-loaded on first call
-
-    def complete(self, system: str, user: str) -> str:
         try:
-            import anthropic
+            import anthropic  # type: ignore[import]
         except ImportError as exc:
             raise ImportError(
                 "anthropic package is required for AnthropicBackend.\n"
                 "Install it with:  pip install anthropic"
             ) from exc
+        self._anthropic = anthropic
+        self._client = None
 
+    def complete(self, system: str, user: str) -> str:
         if self._client is None:
-            import anthropic
-            self._client = anthropic.Anthropic(api_key=self._api_key)
+            self._client = self._anthropic.Anthropic(api_key=self._api_key)
 
         message = self._client.messages.create(
             model=self._model,
