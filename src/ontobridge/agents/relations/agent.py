@@ -52,7 +52,12 @@ class RelationsAgent:
         relations: list[SemanticRelation] = []
         if text:
             triples = self.extractor.extract(text, default_subject=term.preferred_label)
-            relations = [self._to_relation(t, subject_uri) for t in triples]
+            seen: set[tuple[str, str]] = set()
+            for t in triples:
+                key = (t.verb, t.object)
+                if key not in seen:
+                    seen.add(key)
+                    relations.append(self._to_relation(t, subject_uri))
         if term.fibo_match:
             relations.append(self._fibo_relation(term.fibo_match, subject_uri))
         term.relations = relations
