@@ -112,6 +112,8 @@ async def run_pipeline(
             document_id=file.filename,
             approved_by=approved_by.strip() or None,
         )
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"{type(e).__name__}: {e}")
     finally:
         tmp_path.unlink(missing_ok=True)
 

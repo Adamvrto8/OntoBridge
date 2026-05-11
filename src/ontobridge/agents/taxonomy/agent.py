@@ -115,8 +115,27 @@ class TaxonomyAgent:
         )
 
     def apply(self, term: EnrichedTerm) -> EnrichedTerm:
-        term.taxonomy_placement = self.evaluate(term)
+        fibo = term.fibo_match
+        if fibo and fibo.broader_uri:
+            term.taxonomy_placement = self._fibo_placement(term, fibo)
+        else:
+            term.taxonomy_placement = self.evaluate(term)
         return term
+
+    def _fibo_placement(self, term: EnrichedTerm, fibo) -> TaxonomyPlacement:
+        scheme_uri = (
+            f"https://spec.edmcouncil.org/fibo/ontology/{fibo.module}/"
+            if fibo.module
+            else fibo.broader_uri
+        )
+        return TaxonomyPlacement(
+            broader_concept_uri=fibo.broader_uri,
+            scheme_uri=scheme_uri,
+            domain_prefix=build_curie(term.preferred_label or "", self.curie_prefix),
+            placement_confidence=0.95,
+            status=PlacementStatus.PLACED,
+            sibling_conflicts=[],
+        )
 
     @staticmethod
     def _excluded_uri(term: EnrichedTerm) -> str | None:

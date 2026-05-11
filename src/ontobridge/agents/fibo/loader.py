@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from rdflib import Graph, RDFS, SKOS, URIRef as _URIRef
-from rdflib.term import URIRef
+from rdflib import Graph, RDFS, SKOS, OWL, URIRef as _URIRef
+from rdflib.term import URIRef, BNode
 
 _CMNS_AV = "https://www.omg.org/spec/Commons/AnnotationVocabulary/"
 CMNS_SYNONYM      = _URIRef(_CMNS_AV + "synonym")
@@ -14,11 +14,13 @@ CMNS_ABBREVIATION = _URIRef(_CMNS_AV + "abbreviation")
 
 @dataclass
 class FiboIndex:
-    uri_by_label:     dict[str, set[str]]   = field(default_factory=dict)
-    uri_to_definition: dict[str, str]       = field(default_factory=dict)
-    # synonyms and abbreviations stored per URI so the matcher can expose
-    # them as alt labels without mixing them into the preferred label slot
-    alt_labels_by_uri: dict[str, list[str]] = field(default_factory=dict)
+    uri_by_label:      dict[str, set[str]]   = field(default_factory=dict)
+    uri_to_definition: dict[str, str]        = field(default_factory=dict)
+    alt_labels_by_uri: dict[str, list[str]]  = field(default_factory=dict)
+    # preferred label for each URI — used to resolve parent labels
+    label_by_uri:      dict[str, str]        = field(default_factory=dict)
+    # direct parent URI from rdfs:subClassOf (named classes only, no BNodes)
+    parent_by_uri:     dict[str, str]        = field(default_factory=dict)
 
     @classmethod
     def from_paths(cls, paths: Iterable[Path | str]) -> "FiboIndex":
@@ -87,6 +89,14 @@ class FiboIndex:
                         unique.append(lbl)
                 self.alt_labels_by_uri[uri] = unique
 
+            # --- preferred label (for parent label lookup) ---
+            if uri not in self.label_by_uri:
+                for lbl in graph.objects(subject=subject, predicate=RDFS.label):
+                    text = self._label_text(lbl)
+                    if text:
+                        self.label_by_uri[uri] = text
+                        break
+
             # --- definition ---
             if uri not in self.uri_to_definition:
                 definition = self._first_literal(graph, subject, SKOS.definition)
@@ -94,6 +104,14 @@ class FiboIndex:
                     definition = self._first_literal(graph, subject, RDFS.comment)
                 if definition:
                     self.uri_to_definition[uri] = definition
+
+        # --- rdfs:subClassOf hierarchy (named classes only, skip BNodes) ---
+        for subject, _, obj in graph.triples((None, RDFS.subClassOf, None)):
+            if isinstance(subject, URIRef) and isinstance(obj, URIRef):
+                s, o = str(subject), str(obj)
+                # only store the first parent found; skip owl:Thing
+                if s not in self.parent_by_uri and "owl#Thing" not in o:
+                    self.parent_by_uri[s] = o
 
     @staticmethod
     def _label_text(node) -> str:
