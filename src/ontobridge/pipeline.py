@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from difflib import SequenceMatcher
+
 from ontobridge.agents.governance import Candidate, GovernanceAgent, PolicyRef
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.mapping import MappingAgent, from_ontology
@@ -11,9 +13,12 @@ from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
 from ontobridge.agents.writer import WriterAgent
 from ontobridge.models.enrichment import EnrichedTerm
+from ontobridge.models.enums import RelationStatus
 from ontobridge.models.published import PublishedTerm
 from ontobridge.pipeline_config import PipelineConfig
 from ontobridge.publisher.base import TermPublisher
+
+_OBJECT_RESOLUTION_THRESHOLD = 0.82
 
 
 class PipelineRunner:
@@ -96,9 +101,42 @@ class PipelineRunner:
         if self.definition_agent is not None:
             self.definition_agent.apply(term)
         self.relations.apply(term)
+        self._resolve_relation_objects(term)
         candidate = self._term_to_candidate(term)
         term.governance_result = self.governance.evaluate(candidate)
         return self.writer.publish(term, term_uri=term_uri, approved_by=approved_by)
+
+    def _resolve_relation_objects(self, term: EnrichedTerm) -> None:
+        """Try to link each relation's object_label to a published term URI."""
+        for rel in term.relations:
+            if rel.object_uri is not None:
+                continue  # already resolved (e.g. FIBO closeMatch)
+            if rel.status is RelationStatus.FIBO_MATCH:
+                continue
+            if not rel.object_label or rel.object_label == "—":
+                continue
+            uri = self._find_term_uri(rel.object_label)
+            if uri:
+                rel.object_uri = uri
+
+    def _find_term_uri(self, object_label: str) -> str | None:
+        needle = object_label.casefold().strip()
+        if not needle:
+            return None
+        candidates = self.publisher.search_terms(needle)
+        best_uri: str | None = None
+        best_score = 0.0
+        for published in candidates:
+            pref = (published.enriched_term.preferred_label or "").casefold()
+            if pref == needle:
+                return published.term_uri  # exact match — done
+            score = SequenceMatcher(None, needle, pref).ratio()
+            if score > best_score:
+                best_score = score
+                best_uri = published.term_uri
+        if best_score >= _OBJECT_RESOLUTION_THRESHOLD:
+            return best_uri
+        return None
 
     @staticmethod
     def _validate_input(term: EnrichedTerm) -> None:
