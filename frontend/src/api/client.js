@@ -38,4 +38,7 @@ export const api = {
   stats: {
     get: () => request('/stats'),
   },
+  graph: {
+    get: () => request('/graph'),
+  },
 }

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from ontobridge.api.routers import audit, pipeline, stats, terms
+from ontobridge.api.routers import audit, graph, pipeline, stats, terms
 
 
 def create_app(
@@ -62,6 +62,7 @@ def create_app(
     app.include_router(pipeline.router, prefix="/api")
     app.include_router(audit.router, prefix="/api")
     app.include_router(stats.router, prefix="/api")
+    app.include_router(graph.router, prefix="/api")
 
     # Serve built React frontend if it exists
     frontend_dist = Path(__file__).resolve().parents[4] / "frontend" / "dist"
