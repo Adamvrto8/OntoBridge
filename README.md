@@ -182,7 +182,8 @@ No configuration needed. The index loads on the first pipeline run (~30–60 sec
 |---|---|
 | **skos:closeMatch relation** | If a term matches a FIBO concept, a semantic relation linking to the official FIBO URI is added to the term detail |
 | **Alt labels** | FIBO synonyms and abbreviations (e.g. "financial institution", "BIC", "AML") are injected as alt labels and appear under "Also known as" |
-| **Definition quality check** | Governance Rule 12 compares the extracted definition against FIBO's authoritative definition and warns when they diverge significantly |
+| **Taxonomy placement** | FIBO's `rdfs:subClassOf` hierarchy (2884 parent relationships) is used to place matched terms under their authoritative broader concept at confidence 0.95 |
+| **Definition quality check** | Governance Rule 12 compares the extracted definition against FIBO's authoritative `skos:definition` and warns when they diverge significantly |
 
 Matching works on preferred labels, SKOS alt labels, `cmns-av:synonym` (418 entries), and `cmns-av:abbreviation` (810 entries). Terms like "AML", "BIC", or "financial institution" will match even if the document uses the abbreviated form.
 
@@ -194,31 +195,35 @@ Matching works on preferred labels, SKOS alt labels, `cmns-av:synonym` (418 entr
 Document
    |
    v
-HarvesterAgent    reads PDF/TXT/DOCX, splits into records
+HarvesterAgent        reads PDF/TXT/DOCX, splits into records
    |
    v
-NER Extractor     PatternTermExtractor or LLMNerExtractor
+NER Extractor         PatternTermExtractor or LLMNerExtractor
+   |                  (extraction is independent of FIBO)
+   v
+FiboMatcher           matches against FIBO labels/synonyms/abbreviations
+   |                  adds: closeMatch URI, alt labels, broader concept,
+   |                  module, expected definition
+   v
+MappingAgent          checks for duplicates against existing glossary
    |
    v
-FiboMatcher       matches term against FIBO — adds closeMatch URI,
-   |              alt labels, expected definition (optional, needs fibo/)
+TaxonomyAgent         FIBO hierarchy placement (falls back to ontology
+   |                  similarity when no FIBO match found)
    v
-MappingAgent      checks for duplicates against existing glossary
+DefinitionAgent       heuristic sentence scoring + optional LLM rewrite
+   |                  (LLM also generates IF/THEN business rules)
+   v
+RelationsAgent        SVO regex extraction from definition text
+   |                  + FIBO skos:closeMatch injection
+   v
+Object resolution     links relation object phrases to published term URIs
+   |                  (enables cross-term edges in knowledge graph)
+   v
+GovernanceAgent       evaluates 14 rules → recommended action + confidence
    |
    v
-TaxonomyAgent     places term in SKOS taxonomy scheme
-   |
-   v
-DefinitionAgent   heuristic or LLM-powered definition enrichment
-   |              (also generates IF/THEN business rules when LLM enabled)
-   v
-RelationsAgent    SVO extraction from definition text + FIBO closeMatch
-   |
-   v
-GovernanceAgent   evaluates 14 rules, assigns DRAFT/REVIEW/PUBLISHED
-   |
-   v
-TermPublisher     persists to in-memory store or SQLite
+TermPublisher         persists to in-memory store or SQLite
 ```
 
 ---
@@ -291,7 +296,7 @@ ontobridge/
 | **Term Detail** | Full term record — definition, alt labels, business rules, taxonomy, semantic relations, lifecycle transitions |
 | **Glossary** | Browse all published terms, filter by scheme/approver/version, export CSV |
 | **Pipeline Stats** | Extraction and governance metrics by scheme |
-| **Knowledge Graph** | Interactive graph of term relationships |
+| **Knowledge Graph** | Live force-directed graph of terms and their resolved semantic relations — click any node to open its term detail |
 | **Audit Log** | Full history of all governance actions |
 | **Miro Board** | Embedded Miro board for collaborative whiteboarding |
 
@@ -300,7 +305,9 @@ ontobridge/
 ## Running tests
 
 ```bash
-pytest
+pytest                                    # full suite
+pytest tests/test_relations_agent.py -v  # single file
+pytest -k "fibo" -v                       # filter by name
 ```
 
 574 tests, 1 skipped (chromadb optional dependency).
