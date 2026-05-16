@@ -103,6 +103,7 @@ class AnthropicBackend:
         message = self._client.messages.create(
             model=self._model,
             max_tokens=1024,
+            temperature=0,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
