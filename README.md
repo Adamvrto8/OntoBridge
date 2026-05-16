@@ -85,7 +85,9 @@ $env:DB_PATH = "ontobridge.db"
 uvicorn api_server:app --reload
 ```
 
-API runs at **http://localhost:8000** · Interactive docs at **http://localhost:8000/docs**
+API runs at **http://localhost:8001** · Interactive docs at **http://localhost:8001/docs**
+
+> If port 8001 is already in use, pass a different port: `.\start_server.ps1 -Port 8002`
 
 ### 5. Start the React frontend
 
@@ -112,19 +114,19 @@ pip install -e ".[api,readers,llm]"
 pip install anthropic rdflib
 cd frontend && npm install && cd ..
 
-# Start shared server (builds frontend + starts on 0.0.0.0:8000)
-.\start_server.ps1
+# Start shared server (builds frontend, starts on 0.0.0.0:8001)
+.\start_server.ps1 -Port 8001
 ```
 
 The script prints the LAN IP — share it with the team:
 
 ```
 ========================================
-  OntoBridge starting on port 8000
+  OntoBridge starting on port 8001
 
-  This machine:  http://localhost:8000
-  Team members:  http://192.168.1.42:8000   ← share this
-  API docs:      http://localhost:8000/docs
+  This machine:  http://localhost:8001
+  Team members:  http://192.168.1.42:8001   ← share this
+  API docs:      http://localhost:8001/docs
 ========================================
 ```
 
@@ -140,7 +142,7 @@ If you want hot-reload while developing (optional):
 
 ```powershell
 # In frontend/
-$env:VITE_BACKEND_URL = "http://192.168.1.42:8000"
+$env:VITE_BACKEND_URL = "http://192.168.1.42:8001"
 npm run dev
 ```
 

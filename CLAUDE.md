@@ -19,10 +19,9 @@ uvicorn api_server:app --reload
 $env:DB_PATH = "ontobridge.db"; uvicorn api_server:app --reload
 
 # Shared team server (builds frontend, binds 0.0.0.0, prints LAN IP)
-.\start_server.ps1
-.\start_server.ps1 -NoBuild    # skip npm build
-.\start_server.ps1 -Demo       # in-memory mode
-.\start_server.ps1 -Port 8080  # custom port
+.\start_server.ps1 -Port 8001          # port 8000 taken on this machine
+.\start_server.ps1 -Port 8001 -NoBuild # skip npm build
+.\start_server.ps1 -Port 8001 -Demo    # in-memory mode
 
 # Run all tests
 pytest
