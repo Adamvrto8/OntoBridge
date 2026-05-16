@@ -100,6 +100,61 @@ Open your browser at **http://localhost:5173**
 
 ---
 
+## Shared team server
+
+Run one instance that the whole team can access over the local network.
+
+### Host machine (one-time setup)
+
+```powershell
+# Install dependencies
+pip install -e ".[api,readers,llm]"
+pip install anthropic rdflib
+cd frontend && npm install && cd ..
+
+# Start shared server (builds frontend + starts on 0.0.0.0:8000)
+.\start_server.ps1
+```
+
+The script prints the LAN IP — share it with the team:
+
+```
+========================================
+  OntoBridge starting on port 8000
+
+  This machine:  http://localhost:8000
+  Team members:  http://192.168.1.42:8000   ← share this
+  API docs:      http://localhost:8000/docs
+========================================
+```
+
+Data is stored in `ontobridge.db` (SQLite) and survives restarts.
+
+### Connecting (team members)
+
+Just open **`http://<host-ip>:8000`** in a browser — no install needed.
+
+### Running a local dev frontend against the shared API
+
+If you want hot-reload while developing (optional):
+
+```powershell
+# In frontend/
+$env:VITE_BACKEND_URL = "http://192.168.1.42:8000"
+npm run dev
+```
+
+### Options
+
+| Flag | Effect |
+|---|---|
+| `.\start_server.ps1` | Persistent SQLite + builds frontend |
+| `.\start_server.ps1 -NoBuild` | Skip `npm build` (already built) |
+| `.\start_server.ps1 -Demo` | In-memory mode (resets on restart) |
+| `.\start_server.ps1 -Port 8080` | Use a different port |
+
+---
+
 ### Running the Streamlit dashboard (optional)
 
 The original Streamlit dashboard is still available for internal use:
