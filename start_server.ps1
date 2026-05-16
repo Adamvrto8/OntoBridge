@@ -53,7 +53,7 @@ Write-Host "  OntoBridge starting on port $Port"     -ForegroundColor Green
 Write-Host ""
 Write-Host "  This machine:  http://localhost:$Port"
 if ($localIp) {
-    Write-Host "  Team members:  http://$localIp:$Port" -ForegroundColor Yellow
+    Write-Host "  Team members:  http://${localIp}:$Port" -ForegroundColor Yellow
 }
 Write-Host "  API docs:      http://localhost:$Port/docs"
 Write-Host "========================================" -ForegroundColor Green
@@ -61,5 +61,5 @@ Write-Host ""
 
 # --- 5. Start uvicorn ---
 Push-Location $root
-uvicorn api_server:app --host 0.0.0.0 --port $Port
+python -m uvicorn api_server:app --host 0.0.0.0 --port $Port
 Pop-Location
