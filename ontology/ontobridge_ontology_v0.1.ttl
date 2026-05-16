@@ -85,6 +85,26 @@ bank:SchemeChannel
     skos:prefLabel "Channel"@en ;
     dct:description "Customer interaction channels — digital, branch, call centre, partner."@en .
 
+bank:SchemeCompliance
+    a skos:ConceptScheme ;
+    skos:prefLabel "Compliance / Regulatory"@en ;
+    dct:description "Regulatory frameworks, obligations, and compliance controls applicable to banking operations — GDPR, Basel, AML law, reporting."@en .
+
+bank:SchemePricing
+    a skos:ConceptScheme ;
+    skos:prefLabel "Pricing / Fees"@en ;
+    dct:description "Interest rates, fees, charges, and pricing terms applied to banking products and services."@en .
+
+bank:SchemeOrganisation
+    a skos:ConceptScheme ;
+    skos:prefLabel "Organisation"@en ;
+    dct:description "Internal organisational structure — employees, roles, departments, committees, and governance bodies."@en .
+
+bank:SchemeIT
+    a skos:ConceptScheme ;
+    skos:prefLabel "IT / Data"@en ;
+    dct:description "Information systems, data platforms, and digital infrastructure supporting banking operations."@en .
+
 
 # ==========================================================================
 # SCHEME 1: PARTY / CUSTOMER
@@ -861,9 +881,322 @@ bank:CreditCheck        bank-rel:produces    bank:ProbabilityOfDefault .
 
 
 # ==========================================================================
-# END OF v0.2
+# EXPANSION v0.3 — Four new schemes for broad banking document coverage
 # ==========================================================================
-# Concepts: 35 (v0.1) + 32 (v0.2) = 67 total
+
+
+# --------------------------------------------------------------------------
+# SCHEME 7: COMPLIANCE / REGULATORY
+# --------------------------------------------------------------------------
+
+bank:Regulation
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:topConceptOf bank:SchemeCompliance ;
+    skos:prefLabel "Regulation"@en ;
+    skos:altLabel "Regulatory requirement"@en, "Legal requirement"@en, "Regulatory framework"@en ;
+    skos:definition "A binding rule or directive issued by a regulatory authority that governs the conduct of banking operations."@en .
+
+bank:GDPRCompliance
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:Regulation ;
+    skos:prefLabel "GDPR compliance"@en ;
+    skos:altLabel "GDPR"@en, "Data protection regulation"@en, "General Data Protection Regulation"@en ;
+    skos:definition "Compliance with the General Data Protection Regulation governing the collection, processing, and storage of personal data of EU residents."@en .
+
+bank:DataProtection
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:GDPRCompliance ;
+    skos:prefLabel "Data protection"@en ;
+    skos:altLabel "Personal data protection"@en, "Data privacy"@en, "Privacy"@en ;
+    skos:definition "The set of policies and controls ensuring that personal customer data is collected, stored, and processed in accordance with applicable privacy law."@en .
+
+bank:BaselAccord
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:Regulation ;
+    skos:prefLabel "Basel Accord"@en ;
+    skos:altLabel "Basel III"@en, "Basel framework"@en, "Basel II"@en, "Basel IV"@en ;
+    skos:definition "An international regulatory framework for banks establishing minimum capital requirements, leverage ratios, and liquidity standards."@en .
+
+bank:RegulatoryCapital
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:BaselAccord ;
+    skos:prefLabel "Regulatory capital"@en ;
+    skos:altLabel "Capital requirement"@en, "Minimum capital"@en, "Capital adequacy"@en, "CAR"@en ;
+    skos:definition "The minimum amount of capital a bank is required to hold against its risk-weighted assets as prescribed by the Basel framework and local regulators."@en .
+
+bank:RegulatoryAuthority
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:Regulation ;
+    skos:prefLabel "Regulatory authority"@en ;
+    skos:altLabel "Regulator"@en, "Supervisory authority"@en, "Central bank"@en, "Financial regulator"@en ;
+    skos:definition "A governmental or statutory body responsible for supervising and enforcing compliance in the banking and financial services sector."@en .
+
+bank:ReportingObligation
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:Regulation ;
+    skos:prefLabel "Reporting obligation"@en ;
+    skos:altLabel "Regulatory reporting"@en, "Statutory reporting"@en, "Disclosure requirement"@en ;
+    skos:definition "A legal requirement for a bank to submit specified data, returns, or disclosures to a regulatory authority within defined timeframes."@en .
+
+bank:SuspiciousActivityReport
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:ReportingObligation ;
+    skos:prefLabel "Suspicious activity report"@en ;
+    skos:altLabel "SAR"@en, "Suspicious transaction report"@en, "STR"@en ;
+    skos:definition "A mandatory report filed with the financial intelligence unit when a bank suspects that a transaction or customer activity involves money laundering or terrorist financing."@en .
+
+bank:InternalAudit
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:Regulation ;
+    skos:prefLabel "Internal audit"@en ;
+    skos:altLabel "Audit"@en, "Internal control review"@en, "Audit function"@en ;
+    skos:definition "An independent assurance function within the bank that evaluates the adequacy and effectiveness of internal controls, risk management, and governance processes."@en .
+
+bank:InternalControl
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:Regulation ;
+    skos:prefLabel "Internal control"@en ;
+    skos:altLabel "Control"@en, "Control framework"@en, "Control mechanism"@en ;
+    skos:definition "A policy, procedure, or system designed to prevent errors, fraud, or regulatory breaches in banking operations."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 8: PRICING / FEES
+# --------------------------------------------------------------------------
+
+bank:PricingTerm
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:topConceptOf bank:SchemePricing ;
+    skos:prefLabel "Pricing term"@en ;
+    skos:altLabel "Price"@en, "Pricing"@en, "Financial charge"@en ;
+    skos:definition "Any cost, rate, or charge applicable to a banking product or service."@en .
+
+bank:InterestRate
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:PricingTerm ;
+    skos:prefLabel "Interest rate"@en ;
+    skos:altLabel "Rate of interest"@en, "Lending rate"@en, "Borrowing rate"@en ;
+    skos:definition "The percentage of the outstanding loan principal charged by the bank per period as compensation for providing credit."@en .
+
+bank:FixedRate
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:InterestRate ;
+    skos:prefLabel "Fixed interest rate"@en ;
+    skos:altLabel "Fixed rate"@en, "Fixed APR"@en ;
+    skos:definition "An interest rate that remains constant throughout the term of the loan, regardless of changes in market rates."@en .
+
+bank:VariableRate
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:InterestRate ;
+    skos:prefLabel "Variable interest rate"@en ;
+    skos:altLabel "Variable rate"@en, "Floating rate"@en, "Adjustable rate"@en ;
+    skos:definition "An interest rate that fluctuates over the loan term in line with a reference rate such as EURIBOR or the central bank base rate."@en .
+
+bank:APR
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:InterestRate ;
+    skos:prefLabel "Annual percentage rate"@en ;
+    skos:altLabel "APR"@en, "Effective annual rate"@en, "APRC"@en ;
+    skos:definition "The total cost of credit expressed as a yearly rate, including interest and all mandatory fees, used for standardised product comparison."@en .
+
+bank:Fee
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:PricingTerm ;
+    skos:prefLabel "Fee"@en ;
+    skos:altLabel "Charge"@en, "Service fee"@en, "Bank charge"@en, "Commission"@en ;
+    skos:definition "A fixed or variable amount charged by the bank for a specific service, transaction, or product feature."@en .
+
+bank:Penalty
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:Fee ;
+    skos:prefLabel "Penalty"@en ;
+    skos:altLabel "Penalty fee"@en, "Default charge"@en, "Late payment fee"@en, "Early repayment charge"@en ;
+    skos:definition "A charge applied when a customer breaches a product condition, such as a missed payment, early repayment, or overdraft exceedance."@en .
+
+bank:Spread
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:InterestRate ;
+    skos:prefLabel "Spread"@en ;
+    skos:altLabel "Credit spread"@en, "Margin"@en, "Risk premium"@en ;
+    skos:definition "The difference between the reference rate and the customer's actual interest rate, reflecting the bank's risk premium and profit margin."@en .
+
+bank:RepaymentSchedule
+    a skos:Concept ;
+    skos:inScheme bank:SchemePricing ;
+    skos:broader bank:PricingTerm ;
+    skos:prefLabel "Repayment schedule"@en ;
+    skos:altLabel "Amortisation schedule"@en, "Payment schedule"@en, "Instalment schedule"@en ;
+    skos:definition "A plan specifying the amount, frequency, and dates of loan repayments over the life of the credit product."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 9: ORGANISATION
+# --------------------------------------------------------------------------
+
+bank:OrganisationalUnit
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:topConceptOf bank:SchemeOrganisation ;
+    skos:prefLabel "Organisational unit"@en ;
+    skos:altLabel "Organisation"@en, "Bank unit"@en, "Business unit"@en, "Division"@en ;
+    skos:definition "A structural unit within the bank — a division, department, team, or branch — responsible for a defined set of activities."@en .
+
+bank:Department
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:OrganisationalUnit ;
+    skos:prefLabel "Department"@en ;
+    skos:altLabel "Team"@en, "Unit"@en, "Section"@en ;
+    skos:definition "A functional group within the bank responsible for a specific domain such as credit, compliance, IT, or customer service."@en .
+
+bank:Committee
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:OrganisationalUnit ;
+    skos:prefLabel "Committee"@en ;
+    skos:altLabel "Board committee"@en, "Credit committee"@en, "Risk committee"@en ;
+    skos:definition "A formal governance body composed of senior staff responsible for oversight, decision-making, or approval in a specific domain."@en .
+
+bank:Employee
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:OrganisationalUnit ;
+    skos:prefLabel "Employee"@en ;
+    skos:altLabel "Staff member"@en, "Bank employee"@en, "Personnel"@en ;
+    skos:definition "An individual employed by the bank to carry out defined duties under an employment contract."@en .
+
+bank:RelationshipManager
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:Employee ;
+    skos:prefLabel "Relationship manager"@en ;
+    skos:altLabel "RM"@en, "Account manager"@en, "Client manager"@en ;
+    skos:definition "A bank employee responsible for managing the ongoing relationship with a customer or portfolio of customers."@en .
+
+bank:CreditAnalyst
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:Employee ;
+    skos:prefLabel "Credit analyst"@en ;
+    skos:altLabel "Underwriter"@en, "Credit officer"@en ;
+    skos:definition "A bank employee responsible for evaluating credit applications, assessing risk, and recommending lending decisions."@en .
+
+bank:ComplianceOfficer
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:Employee ;
+    skos:prefLabel "Compliance officer"@en ;
+    skos:altLabel "MLRO"@en, "Money laundering reporting officer"@en, "AML officer"@en ;
+    skos:definition "A bank employee responsible for ensuring adherence to regulatory requirements and internal compliance policies."@en .
+
+bank:RiskManager
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:Employee ;
+    skos:prefLabel "Risk manager"@en ;
+    skos:altLabel "Risk officer"@en, "Chief risk officer"@en, "CRO"@en ;
+    skos:definition "A bank employee responsible for identifying, measuring, and managing financial and operational risks."@en .
+
+bank:DataSteward
+    a skos:Concept ;
+    skos:inScheme bank:SchemeOrganisation ;
+    skos:broader bank:Employee ;
+    skos:prefLabel "Data steward"@en ;
+    skos:altLabel "Data owner"@en, "Term steward"@en, "Glossary steward"@en ;
+    skos:definition "An employee accountable for the quality, governance, and authoritative definition of data assets within a specific business domain."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 10: IT / DATA
+# --------------------------------------------------------------------------
+
+bank:InformationSystem
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:topConceptOf bank:SchemeIT ;
+    skos:prefLabel "Information system"@en ;
+    skos:altLabel "System"@en, "IT system"@en, "Application"@en, "Software"@en ;
+    skos:definition "A technology platform or application used by the bank to store, process, or transmit business or customer data."@en .
+
+bank:CoreBankingSystem
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:broader bank:InformationSystem ;
+    skos:prefLabel "Core banking system"@en ;
+    skos:altLabel "CBS"@en, "Core system"@en, "Banking platform"@en ;
+    skos:definition "The central IT system that manages the bank's fundamental operations including accounts, loans, deposits, and transactions."@en .
+
+bank:CRM
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:broader bank:InformationSystem ;
+    skos:prefLabel "Customer relationship management system"@en ;
+    skos:altLabel "CRM"@en, "CRM system"@en ;
+    skos:definition "A software platform used to manage customer interactions, sales pipelines, and relationship history across all banking channels."@en .
+
+bank:DataWarehouse
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:broader bank:InformationSystem ;
+    skos:prefLabel "Data warehouse"@en ;
+    skos:altLabel "DWH"@en, "Enterprise data warehouse"@en, "EDW"@en, "Data mart"@en ;
+    skos:definition "A centralised repository that integrates and stores structured data from multiple source systems for reporting and analytical purposes."@en .
+
+bank:ReportingSystem
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:broader bank:InformationSystem ;
+    skos:prefLabel "Reporting system"@en ;
+    skos:altLabel "BI system"@en, "Business intelligence"@en, "BI tool"@en, "Analytics platform"@en ;
+    skos:definition "A platform used to generate, distribute, and visualise management and regulatory reports from banking data."@en .
+
+bank:API
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:broader bank:InformationSystem ;
+    skos:prefLabel "API"@en ;
+    skos:altLabel "Application programming interface"@en, "Open API"@en, "Banking API"@en, "Open banking API"@en ;
+    skos:definition "A defined interface that allows external or internal applications to access banking services and data in a standardised, secure manner."@en .
+
+bank:DataGovernance
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:broader bank:InformationSystem ;
+    skos:prefLabel "Data governance"@en ;
+    skos:altLabel "Data management"@en, "Data quality"@en, "Master data management"@en, "MDM"@en ;
+    skos:definition "The framework of policies, roles, and processes that ensure data across the bank is accurate, consistent, secure, and used in compliance with regulations."@en .
+
+bank:DataCatalog
+    a skos:Concept ;
+    skos:inScheme bank:SchemeIT ;
+    skos:broader bank:DataGovernance ;
+    skos:prefLabel "Data catalog"@en ;
+    skos:altLabel "Business glossary"@en, "Metadata catalog"@en, "Data dictionary"@en ;
+    skos:definition "A curated inventory of data assets available within the organisation, including definitions, lineage, and ownership information."@en .
+
+
+# ==========================================================================
+# END OF v0.3
+# ==========================================================================
+# Concepts: 35 (v0.1) + 32 (v0.2) + 36 (v0.3) = 103 total across 10 schemes
 # Schemes:  6 (unchanged)
 # FIBO bridges: 5 (v0.1) — expand to 15-20 in v0.3 with verified URIs
 # Next: add AML/FIBO bridges, skos:note examples, SPARQL validation queries
