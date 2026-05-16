@@ -210,6 +210,7 @@ class StatsOut(BaseModel):
     by_status: dict[str, int]
     by_scheme: dict[str, int]
     recent_activity: int
+    with_definition: int
 
 
 def _last_segment(uri: str | None) -> str | None:

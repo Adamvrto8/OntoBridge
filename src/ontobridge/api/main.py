@@ -68,7 +68,7 @@ def create_app(
     app.include_router(graph.router, prefix="/api")
 
     # Serve built React frontend if it exists
-    frontend_dist = Path(__file__).resolve().parents[4] / "frontend" / "dist"
+    frontend_dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if frontend_dist.exists():
         app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 

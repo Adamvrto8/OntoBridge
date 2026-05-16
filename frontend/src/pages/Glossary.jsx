@@ -87,7 +87,7 @@ export default function Glossary() {
         </div>
         <div className="actions">
           <button className="btn" onClick={() => window.open('/api/terms/export/csv?status=published')}>
-            <ExtIcon /> Export turtle
+            <ExtIcon /> Export CSV
           </button>
           <button className="btn primary" onClick={() => api.terms.exportCsv('published')}>
             <DownIcon /> Export CSV

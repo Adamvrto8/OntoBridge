@@ -16,6 +16,7 @@ def get_stats(publisher: PublisherDep, audit: AuditDep):
     by_status: dict[str, int] = {s.value: 0 for s in LifecycleStatus}
     scheme_total: dict[str, int] = {}
     scheme_with_def: dict[str, int] = {}
+    with_definition = 0
 
     for t in terms:
         by_status[t.lifecycle_status.value] = by_status.get(t.lifecycle_status.value, 0) + 1
@@ -26,6 +27,7 @@ def get_stats(publisher: PublisherDep, audit: AuditDep):
         scheme_total[label] = scheme_total.get(label, 0) + 1
         if t.enriched_term.definition:
             scheme_with_def[label] = scheme_with_def.get(label, 0) + 1
+            with_definition += 1
 
     by_scheme = {
         label: round(scheme_with_def.get(label, 0) / total * 100)
@@ -37,4 +39,5 @@ def get_stats(publisher: PublisherDep, audit: AuditDep):
         by_status={k: v for k, v in by_status.items() if v > 0},
         by_scheme=by_scheme,
         recent_activity=audit.count(),
+        with_definition=with_definition,
     )

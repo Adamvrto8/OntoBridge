@@ -98,10 +98,12 @@ export default function Inbox() {
     if (failed > 0) alert(`${failed} term(s) could not be transitioned.`)
   }
 
-  const published   = stats?.by_status?.published ?? 0
-  const total       = stats?.total ?? 0
-  const reviewCount = stats?.by_status?.review ?? 0
-  const coverage    = total > 0 ? Math.round(published / total * 100) : 0
+  const published      = stats?.by_status?.published ?? 0
+  const total          = stats?.total ?? 0
+  const reviewCount    = stats?.by_status?.review ?? 0
+  const candidateCount = stats?.by_status?.candidate ?? 0
+  const withDef        = stats?.with_definition ?? 0
+  const coverage       = total > 0 ? Math.round(withDef / total * 100) : 0
 
   const sevCounts = SEV_FILTERS.slice(1).reduce((a, s) => {
     a[s] = reviewTerms.filter(t => severityOf(t) === s).length; return a
@@ -121,7 +123,7 @@ export default function Inbox() {
         </div>
         <div className="actions">
           <button className="btn" onClick={() => api.terms.exportCsv('review')}>
-            <ExtIcon /> Export turtle
+            <ExtIcon /> Export CSV
           </button>
           <button
             className={`btn${bulkMode ? '' : ''}`}
@@ -138,12 +140,12 @@ export default function Inbox() {
 
       {/* Metric cards */}
       <div className="metrics">
-        <MetricCard label="Total nodes"      value={fmt(total)}       delta="+42 / 7d"  deltaUp={true} />
-        <MetricCard label="Definition cov."  value={`${coverage}%`}  delta="+1.2 pt"   deltaUp={true} />
-        <MetricCard label="Open issues"      value={fmt(reviewCount)} delta={reviewCount > 0 ? `+${reviewCount} / 24h` : undefined} deltaUp={reviewCount > 0 ? false : undefined} alert />
-        <MetricCard label="Pending review"   value={fmt(reviewCount)} delta="−3 / 24h"  deltaUp={true} />
-        <MetricCard label="Audit events 24h" value={fmt(stats?.recent_activity ?? 0)} delta="stable" />
-        <MetricCard label="Pipeline runs"    value={fmt(published)}   delta="98% pass"  deltaUp={true} />
+        <MetricCard label="Total nodes"     value={fmt(total)} />
+        <MetricCard label="Definition cov." value={`${coverage}%`} />
+        <MetricCard label="Open issues"     value={fmt(reviewCount)} alert />
+        <MetricCard label="Candidates"      value={fmt(candidateCount)} />
+        <MetricCard label="Audit events"    value={fmt(stats?.recent_activity ?? 0)} />
+        <MetricCard label="Published"       value={fmt(published)} />
       </div>
 
       {/* Pipeline funnel */}
