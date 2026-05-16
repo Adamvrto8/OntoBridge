@@ -2,11 +2,34 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from ontobridge.api.deps import AuditDep, PublisherDep
-from ontobridge.api.schemas import StatsOut
+from ontobridge.api.deps import AuditDep, OntologyDep, PublisherDep
+from ontobridge.api.schemas import OntologyConceptOut, StatsOut
 from ontobridge.models.enums import LifecycleStatus
 
 router = APIRouter(prefix="/stats", tags=["stats"])
+
+
+@router.get("/concepts", response_model=list[OntologyConceptOut])
+def list_concepts(ontology: OntologyDep):
+    return [
+        OntologyConceptOut(
+            uri=c.uri,
+            pref_label=c.pref_label,
+            scheme_uri=c.scheme,
+            scheme_label=c.scheme_label,
+        )
+        for c in sorted(ontology.concepts, key=lambda c: (c.scheme_label or "", c.pref_label))
+    ]
+
+
+@router.get("/verbs", response_model=list[str])
+def list_verbs(ontology: OntologyDep):
+    pairs = ontology.object_property_pairs()
+    verbs: set[str] = set()
+    for p in pairs:
+        verbs.add(p.forward_label)
+        verbs.add(p.inverse_label)
+    return sorted(verbs)
 
 
 @router.get("", response_model=StatsOut)

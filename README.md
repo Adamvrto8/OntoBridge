@@ -350,7 +350,7 @@ ontobridge/
 |---|---|
 | **Governance Inbox** | Review terms with severity, confidence, age, and governance issue details |
 | **Run Pipeline** | Upload a document, configure LLM options and API key, run extraction |
-| **Term Detail** | Full term record — definition, alt labels, business rules, taxonomy, semantic relations, lifecycle transitions |
+| **Term Detail** | Full term record — steward-editable definition, alt labels, taxonomy override, semantic relations (add/remove), lifecycle transitions, ancestor breadcrumb path |
 | **Glossary** | Browse all published terms, filter by scheme/approver/version, export CSV |
 | **Pipeline Stats** | Extraction and governance metrics by scheme |
 | **Knowledge Graph** | Live force-directed graph of terms and their resolved semantic relations — click any node to open its term detail |
@@ -368,3 +368,18 @@ pytest -k "fibo" -v                       # filter by name
 ```
 
 574 tests, 1 skipped (chromadb optional dependency).
+
+---
+
+## Steward editing
+
+Every term detail page exposes inline editing for stewards:
+
+| Section | What you can do |
+|---|---|
+| **Definition** | Click Edit → textarea → Save to rewrite the definition |
+| **Also known as** | Add new alt labels (type + Enter), remove existing ones with × |
+| **Taxonomy** | Click Override → searchable list of all 103 ontology concepts → pick a new broader concept and scheme |
+| **Semantic relations** | Click Edit → × to remove relations, add new ones (verb autocomplete + object label) |
+
+All edits are recorded in the Audit Log with the steward's name and timestamp. The term version number increments on every save.

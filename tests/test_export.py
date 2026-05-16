@@ -208,9 +208,10 @@ def test_multiple_terms_merged_into_one_graph(base_ontology):
         approved_by="alice",
     )
     _run_term(
-        runner, "Loan Repayment Schedule",
-        "A document that governs the periodic repayment instalments a customer "
-        "submits against an outstanding loan obligation.",
+        runner, "Voluntary early settlement",
+        "A formal request submitted by a borrower to fully repay an outstanding "
+        "credit balance before the contractual maturity date, typically incurring "
+        "an early settlement charge.",
         approved_by="bob",
     )
     ttl = export_turtle(pub)

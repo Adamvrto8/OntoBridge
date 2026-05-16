@@ -147,9 +147,13 @@ class TaxonomyAgent:
 
     def _rank_parents(self, label: str, excluded_uri: str | None) -> list[_ParentScore]:
         q_vec = self.encoder.encode(label)
+        label_cf = label.casefold()
         scored: list[_ParentScore] = []
         for c in self.ontology.concepts:
             if excluded_uri is not None and c.uri == excluded_uri:
+                continue
+            # A concept cannot be its own broader concept
+            if c.pref_label.casefold() == label_cf:
                 continue
             best_score = 0.0
             best_label = c.pref_label

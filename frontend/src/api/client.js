@@ -23,6 +23,12 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    edit: (uri, body) =>
+      request(`/terms/${encodeURIComponent(uri)}/edit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     exportCsv: (status) => {
       const q = status ? `?status=${status}` : ''
       window.open(`${BASE}/terms/export/csv${q}`)
@@ -37,6 +43,8 @@ export const api = {
   },
   stats: {
     get: () => request('/stats'),
+    concepts: () => request('/stats/concepts'),
+    verbs: () => request('/stats/verbs'),
   },
   graph: {
     get: () => request('/graph'),

@@ -132,6 +132,31 @@ Both accept `approved_by` in `transition_status()`. Transitioning to PUBLISHED r
 2. Import and register it in `src/ontobridge/api/main.py` with `app.include_router(..., prefix="/api")`.
 3. Add the corresponding client call in `frontend/src/api/client.js`.
 
+### Steward editing API
+
+`PATCH /api/terms/{uri}/edit` accepts a `TermPatch` body (all fields optional):
+
+| Field | Type | Effect |
+|---|---|---|
+| `definition` | `str` | Replaces the term definition |
+| `alt_labels` | `list[str]` | Replaces steward-added alt labels (auto-extracted labels preserved) |
+| `broader_concept_uri` | `str` | Overrides taxonomy placement parent |
+| `scheme_uri` | `str` | Overrides scheme (auto-derived from concept if omitted) |
+| `relations_delete` | `list[int]` | Removes relations by index |
+| `relations_add` | `list[{verb, object_label}]` | Adds new relations (verb looked up in InverseVerbLexicon) |
+| `actor` | `str` | Steward name recorded in audit log |
+
+Supporting read endpoints:
+- `GET /api/stats/concepts` — all 103 ontology concepts with scheme label (for taxonomy dropdown)
+- `GET /api/stats/verbs` — known verb labels from OWL ObjectProperties (for relation add autocomplete)
+
+### Ontology
+
+`ontology/ontobridge_ontology_v0.1.ttl` — 103 concepts across 10 schemes (v0.3).
+Schemes: Party, Product, Process, Risk, Document, Channel, Compliance, Pricing, Organisation, IT/Data.
+Loaded at startup into `OntologyIndex`; injected via `OntologyDep` in all routers that need it.
+A concept cannot be its own broader concept (`_rank_parents` skips exact-label matches).
+
 ### CSS design system
 
 The frontend uses a custom CSS design system in `frontend/src/index.css` (no Tailwind utility classes in JSX). Key variables: `--ink`, `--ice`, `--slate-d`, `--red`, `--amber`, `--green`, `--surface`. Layout is CSS grid: `grid-template-areas: "side top" "side main"`. Use existing classes (`.card`, `.card-h`, `.card-b`, `.pill`, `.btn`, `.badge`, `.scheme-pill`, `.lifecycle`, `.issues`) rather than inline styles where possible.

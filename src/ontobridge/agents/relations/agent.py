@@ -75,11 +75,18 @@ class RelationsAgent:
     @staticmethod
     def _collect_text(term: EnrichedTerm) -> str:
         parts: list[str] = []
-        if term.definition:
-            parts.append(term.definition)
+        defn = term.definition or ""
+        if defn:
+            parts.append(defn)
+        defn_cf = defn.casefold()
         for ctx in term.policy_context:
-            if ctx.paragraph:
-                parts.append(ctx.paragraph)
+            para = (ctx.paragraph or "").strip()
+            if not para:
+                continue
+            # Skip if the paragraph is the same as or fully contained in the definition
+            if para.casefold() in defn_cf:
+                continue
+            parts.append(para)
         return " ".join(parts).strip()
 
     @staticmethod

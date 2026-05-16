@@ -31,8 +31,8 @@ class TermSummary(BaseModel):
         et = t.enriched_term
         hr = et.harvest_record
         tp = et.taxonomy_placement
-        scheme_uri  = tp.broader_concept_uri if tp else None
-        scheme_label = _last_segment(scheme_uri) if scheme_uri else None
+        scheme_uri   = tp.scheme_uri if tp else None
+        scheme_label = _resolve_scheme_label(scheme_uri, None)
         sr = hr.source_ref if hr else None
         gov = et.governance_result
 
@@ -89,18 +89,19 @@ class TermDetail(TermSummary):
     alt_labels: list[str]
     broader_uri: str | None
     broader_label: str | None
+    ancestor_path: list[str] = []
     business_rules: list[str]
     relations: list[RelationOut]
     document_id: str | None
     published_at: datetime | None
 
     @classmethod
-    def from_published(cls, t) -> "TermDetail":
+    def from_published(cls, t, ontology=None) -> "TermDetail":
         et = t.enriched_term
         hr = et.harvest_record
         tp = et.taxonomy_placement
-        scheme_uri   = tp.broader_concept_uri if tp else None
-        scheme_label = _last_segment(scheme_uri) if scheme_uri else None
+        scheme_uri   = tp.scheme_uri if tp else None
+        scheme_label = _resolve_scheme_label(scheme_uri, ontology)
         sr  = hr.source_ref if hr else None
         gov = et.governance_result
 
@@ -159,6 +160,7 @@ class TermDetail(TermSummary):
             alt_labels=alt_labels,
             broader_uri=tp.broader_concept_uri if tp else None,
             broader_label=_last_segment(tp.broader_concept_uri) if tp else None,
+            ancestor_path=_build_ancestor_path(tp.broader_concept_uri if tp else None, ontology),
             business_rules=rules,
             relations=relations,
             document_id=sr.document_id if sr else None,
@@ -211,6 +213,57 @@ class StatsOut(BaseModel):
     by_scheme: dict[str, int]
     recent_activity: int
     with_definition: int
+
+
+class RelationAdd(BaseModel):
+    verb: str
+    object_label: str
+
+
+class TermPatch(BaseModel):
+    """Fields a steward can edit on an existing term. All fields are optional —
+    only those present in the request body are applied."""
+    definition: str | None = None
+    alt_labels: list[str] | None = None
+    broader_concept_uri: str | None = None
+    scheme_uri: str | None = None
+    relations_delete: list[int] | None = None
+    relations_add: list[RelationAdd] | None = None
+    actor: str | None = None
+
+
+class OntologyConceptOut(BaseModel):
+    uri: str
+    pref_label: str
+    scheme_uri: str | None
+    scheme_label: str | None
+
+
+def _resolve_scheme_label(scheme_uri: str | None, ontology) -> str | None:
+    if not scheme_uri:
+        return None
+    if ontology is not None:
+        label = ontology.scheme_label(scheme_uri)
+        if label:
+            return label.split("@")[0].strip()  # strip lang tag if present
+    seg = _last_segment(scheme_uri) or ""
+    return seg.removeprefix("Scheme") or seg or None
+
+
+def _build_ancestor_path(broader_uri: str | None, ontology) -> list[str]:
+    if not broader_uri or ontology is None:
+        return []
+    path: list[str] = []
+    current = broader_uri
+    seen: set[str] = set()
+    while current and current not in seen:
+        seen.add(current)
+        concept = ontology.by_uri(current)
+        if concept is None:
+            break
+        path.append(concept.pref_label)
+        current = ontology.get_broader(current)
+    return list(reversed(path))
 
 
 def _last_segment(uri: str | None) -> str | None:
