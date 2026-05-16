@@ -534,13 +534,337 @@ bank:LoanApplication   bank-rel:triggers    bank:CreditCheck .
 
 
 # ==========================================================================
-# END OF DRAFT v0.1
+# EXPANSION v0.2 — Additional banking concepts
+# 35 new concepts across all 6 schemes
 # ==========================================================================
-# TODO (next iterations):
-# - Add more level 3 terms once Databricks metadata is available
-# - Expand FIBO bridging (currently 5 bridges, target 15-20)
-# - Add skos:note and skos:example where useful
-# - Add dct:source provenance links to policy documents
-# - Validate with SPARQL competency queries
-# - Review with domain expert / data steward
+
+
+# --------------------------------------------------------------------------
+# SCHEME 1 (continued): PARTY — compliance roles
+# --------------------------------------------------------------------------
+
+bank:Guarantor
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:Customer ;
+    skos:prefLabel "Guarantor"@en ;
+    skos:altLabel "Surety"@en, "Co-guarantor"@en ;
+    skos:definition "A party who undertakes to repay a borrower's debt if the borrower defaults on the credit obligation."@en .
+
+bank:CoBorrower
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:Customer ;
+    skos:prefLabel "Co-borrower"@en ;
+    skos:altLabel "Joint borrower"@en, "Co-applicant"@en ;
+    skos:definition "A secondary borrower who shares equal legal responsibility for repaying a credit product alongside the primary borrower."@en .
+
+bank:BeneficialOwner
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:CorporateCustomer ;
+    skos:prefLabel "Beneficial owner"@en ;
+    skos:altLabel "Ultimate beneficial owner"@en, "UBO"@en ;
+    skos:definition "A natural person who ultimately owns or exercises effective control over a legal entity customer, as defined by AML regulations."@en .
+
+bank:PEP
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:Customer ;
+    skos:prefLabel "Politically exposed person"@en ;
+    skos:altLabel "PEP"@en ;
+    skos:definition "A natural person who holds or has held a prominent public function, subject to enhanced due diligence requirements under AML law."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 2 (continued): FINANCIAL PRODUCT — additional products
+# --------------------------------------------------------------------------
+
+bank:ConsumerLoan
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:CreditProduct ;
+    skos:prefLabel "Consumer loan"@en ;
+    skos:altLabel "Personal loan"@en, "Retail loan"@en ;
+    skos:definition "An unsecured credit product granted to a retail customer for personal expenditure, not tied to a specific asset purchase."@en .
+
+bank:Mortgage
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:CreditProduct ;
+    skos:prefLabel "Mortgage"@en ;
+    skos:altLabel "Home loan"@en, "Mortgage loan"@en, "Housing loan"@en ;
+    skos:definition "A long-term secured credit product in which real estate property serves as collateral for the loan obligation."@en .
+
+bank:Overdraft
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:CreditProduct ;
+    skos:prefLabel "Overdraft"@en ;
+    skos:altLabel "Current account overdraft"@en, "Arranged overdraft"@en ;
+    skos:definition "A short-term credit facility allowing a customer's current account balance to fall below zero up to an approved limit."@en .
+
+bank:CreditCard
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:CreditProduct ;
+    skos:prefLabel "Credit card"@en ;
+    skos:altLabel "Revolving credit card"@en ;
+    skos:definition "A revolving credit product that allows customers to make purchases or cash advances up to a defined credit limit, with a minimum monthly repayment."@en .
+
+bank:TermDeposit
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProduct ;
+    skos:broader bank:DepositProduct ;
+    skos:prefLabel "Term deposit"@en ;
+    skos:altLabel "Fixed deposit"@en, "Time deposit"@en ;
+    skos:definition "A deposit product held for a fixed term at an agreed interest rate, not accessible before maturity without early-withdrawal penalty."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 3 (continued): PROCESS — compliance and servicing processes
+# --------------------------------------------------------------------------
+
+bank:AMLProcess
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:VerificationProcess ;
+    skos:prefLabel "Anti-money laundering"@en ;
+    skos:altLabel "AML"@en, "AML process"@en, "Money laundering prevention"@en ;
+    skos:definition "The set of policies, controls, and procedures used to detect, prevent, and report money laundering and terrorist financing activities."@en .
+
+bank:CDD
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:VerificationProcess ;
+    skos:prefLabel "Customer due diligence"@en ;
+    skos:altLabel "CDD"@en, "Due diligence"@en ;
+    skos:definition "The process of identifying and verifying a customer's identity and assessing the risk level of the business relationship for AML compliance purposes."@en .
+
+bank:EDD
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:CDD ;
+    skos:prefLabel "Enhanced due diligence"@en ;
+    skos:altLabel "EDD"@en ;
+    skos:definition "Heightened due diligence measures applied to high-risk customers such as PEPs, customers from high-risk jurisdictions, or complex ownership structures."@en .
+
+bank:SanctionsScreening
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:VerificationProcess ;
+    skos:prefLabel "Sanctions screening"@en ;
+    skos:altLabel "Sanctions check"@en, "Watchlist screening"@en ;
+    skos:definition "The automated or manual process of checking customers, transactions, and counterparties against regulatory sanctions lists and watchlists."@en .
+
+bank:CustomerOnboarding
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:ApplicationProcess ;
+    skos:prefLabel "Customer onboarding"@en ;
+    skos:altLabel "Onboarding"@en, "Account opening"@en ;
+    skos:definition "The end-to-end process of accepting a new customer, encompassing identity verification, risk assessment, and activation of products or accounts."@en .
+
+bank:Underwriting
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:ApplicationProcess ;
+    skos:prefLabel "Underwriting"@en ;
+    skos:altLabel "Credit underwriting"@en, "Loan underwriting"@en ;
+    skos:definition "The process of evaluating the financial risk of a credit application and determining approval, rejection, or conditional terms."@en .
+
+bank:CreditDecision
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:ApplicationProcess ;
+    skos:prefLabel "Credit decision"@en ;
+    skos:altLabel "Loan decision"@en, "Credit approval"@en, "Credit rejection"@en ;
+    skos:definition "The formal outcome of the underwriting process — approval, conditional approval, or rejection — communicated to the applicant."@en .
+
+bank:LoanDisbursement
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:ServicingProcess ;
+    skos:prefLabel "Loan disbursement"@en ;
+    skos:altLabel "Disbursement"@en, "Drawdown"@en, "Loan payout"@en ;
+    skos:definition "The process of releasing approved loan funds to the customer or a designated payee after all conditions precedent have been met."@en .
+
+bank:DebtCollection
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:ServicingProcess ;
+    skos:prefLabel "Debt collection"@en ;
+    skos:altLabel "Collections"@en, "Recovery"@en, "Arrears management"@en ;
+    skos:definition "The process of recovering overdue loan payments from borrowers who are delinquent or have defaulted on their credit obligations."@en .
+
+bank:LoanRestructuring
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:ServicingProcess ;
+    skos:prefLabel "Loan restructuring"@en ;
+    skos:altLabel "Restructuring"@en, "Loan modification"@en, "Forbearance"@en ;
+    skos:definition "The modification of the original terms of a loan — such as repayment schedule, interest rate, or maturity — to accommodate a borrower experiencing financial difficulty."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 4 (continued): RISK — credit risk metrics and statuses
+# --------------------------------------------------------------------------
+
+bank:CreditRisk
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:RiskAssessment ;
+    skos:prefLabel "Credit risk"@en ;
+    skos:altLabel "Default risk"@en, "Counterparty risk"@en ;
+    skos:definition "The risk that a borrower will fail to meet contractual repayment obligations, resulting in financial loss to the bank."@en .
+
+bank:OperationalRisk
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:RiskAssessment ;
+    skos:prefLabel "Operational risk"@en ;
+    skos:definition "The risk of loss resulting from inadequate or failed internal processes, systems, people, or external events."@en .
+
+bank:Collateral
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:CreditRisk ;
+    skos:prefLabel "Collateral"@en ;
+    skos:altLabel "Security"@en, "Pledge"@en, "Loan security"@en ;
+    skos:definition "An asset pledged by a borrower to secure a credit obligation, which the bank may seize in the event of default."@en .
+
+bank:DTI
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:CreditRisk ;
+    skos:prefLabel "Debt-to-income ratio"@en ;
+    skos:altLabel "DTI"@en, "DTI ratio"@en ;
+    skos:definition "A metric expressing a borrower's total monthly debt obligations as a percentage of gross monthly income, used to assess repayment capacity."@en .
+
+bank:LTV
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:CreditRisk ;
+    skos:prefLabel "Loan-to-value ratio"@en ;
+    skos:altLabel "LTV"@en, "LTV ratio"@en ;
+    skos:definition "The ratio of a loan amount to the appraised value of the collateral asset, used to assess collateral coverage and credit risk."@en .
+
+bank:Delinquency
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:CreditRisk ;
+    skos:prefLabel "Delinquency"@en ;
+    skos:altLabel "Arrears"@en, "Past due"@en, "Overdue"@en ;
+    skos:definition "A status indicating that a borrower has failed to make one or more scheduled loan repayments by the contractual due date."@en .
+
+bank:Default
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:CreditRisk ;
+    skos:prefLabel "Default"@en ;
+    skos:altLabel "Loan default"@en, "Credit default"@en ;
+    skos:definition "A formal status triggered when a borrower fails to meet the repayment terms of a credit agreement, typically after a defined number of days past due."@en .
+
+bank:NPL
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:CreditRisk ;
+    skos:prefLabel "Non-performing loan"@en ;
+    skos:altLabel "NPL"@en, "Bad loan"@en, "Non-performing exposure"@en ;
+    skos:definition "A loan classified as non-performing when scheduled principal or interest payments are more than 90 days past due or repayment is considered unlikely."@en .
+
+bank:ProbabilityOfDefault
+    a skos:Concept ;
+    skos:inScheme bank:SchemeRisk ;
+    skos:broader bank:CreditRisk ;
+    skos:prefLabel "Probability of default"@en ;
+    skos:altLabel "PD"@en, "PD score"@en ;
+    skos:definition "A statistical estimate of the likelihood that a borrower will default on a credit obligation within a defined time horizon, typically one year."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 5 (continued): DOCUMENT — loan and compliance documents
+# --------------------------------------------------------------------------
+
+bank:LoanAgreement
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:broader bank:Contract ;
+    skos:prefLabel "Loan agreement"@en ;
+    skos:altLabel "Credit agreement"@en, "Loan contract"@en ;
+    skos:definition "A legally binding contract between the bank and a borrower specifying the loan amount, interest rate, repayment schedule, and obligations of both parties."@en .
+
+bank:CreditReport
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:broader bank:Document ;
+    skos:prefLabel "Credit report"@en ;
+    skos:altLabel "Credit bureau report"@en, "Credit history"@en ;
+    skos:definition "A document issued by a credit bureau summarising a borrower's credit history, outstanding obligations, and payment behaviour."@en .
+
+bank:ApplicationForm
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:broader bank:Document ;
+    skos:prefLabel "Application form"@en ;
+    skos:altLabel "Loan application form"@en, "Credit application"@en ;
+    skos:definition "A structured document completed by a customer to formally request a financial product, containing personal, financial, and employment information."@en .
+
+bank:TermsAndConditions
+    a skos:Concept ;
+    skos:inScheme bank:SchemeDocument ;
+    skos:broader bank:Contract ;
+    skos:prefLabel "Terms and conditions"@en ;
+    skos:altLabel "T&C"@en, "General terms"@en, "Product terms"@en ;
+    skos:definition "A document setting out the contractual rules and obligations governing a financial product or service offered by the bank."@en .
+
+
+# --------------------------------------------------------------------------
+# SCHEME 6 (continued): CHANNEL — additional access channels
+# --------------------------------------------------------------------------
+
+bank:ATM
+    a skos:Concept ;
+    skos:inScheme bank:SchemeChannel ;
+    skos:broader bank:Channel ;
+    skos:prefLabel "ATM"@en ;
+    skos:altLabel "Automated teller machine"@en, "Cash machine"@en ;
+    skos:definition "A self-service electronic terminal that allows customers to perform basic banking transactions such as cash withdrawals, deposits, and balance enquiries."@en .
+
+bank:PartnerChannel
+    a skos:Concept ;
+    skos:inScheme bank:SchemeChannel ;
+    skos:broader bank:Channel ;
+    skos:prefLabel "Partner channel"@en ;
+    skos:altLabel "Agent channel"@en, "Third-party channel"@en, "Broker channel"@en ;
+    skos:definition "A distribution channel in which the bank's products are offered through an authorised third-party intermediary such as a broker, agent, or retail partner."@en .
+
+
+# ==========================================================================
+# ADDITIONAL RELATION INSTANCES (v0.2)
+# ==========================================================================
+
+bank:Guarantor          bank-rel:submits     bank:LoanApplication .
+bank:CoBorrower         bank-rel:submits     bank:LoanApplication .
+bank:Mortgage           bank-rel:requires    bank:Collateral .
+bank:Mortgage           bank-rel:requires    bank:LoanAgreement .
+bank:CDD                bank-rel:evaluates   bank:BeneficialOwner .
+bank:EDD                bank-rel:evaluates   bank:PEP .
+bank:AMLProcess         bank-rel:triggers    bank:SanctionsScreening .
+bank:AMLProcess         bank-rel:triggers    bank:CDD .
+bank:Underwriting       bank-rel:produces    bank:CreditDecision .
+bank:Underwriting       bank-rel:evaluates   bank:DTI .
+bank:CreditDecision     bank-rel:governs     bank:LoanDisbursement .
+bank:LoanDisbursement   bank-rel:produces    bank:LoanAgreement .
+bank:DebtCollection     bank-rel:evaluates   bank:Delinquency .
+bank:CreditCheck        bank-rel:produces    bank:ProbabilityOfDefault .
+
+
+# ==========================================================================
+# END OF v0.2
+# ==========================================================================
+# Concepts: 35 (v0.1) + 32 (v0.2) = 67 total
+# Schemes:  6 (unchanged)
+# FIBO bridges: 5 (v0.1) — expand to 15-20 in v0.3 with verified URIs
+# Next: add AML/FIBO bridges, skos:note examples, SPARQL validation queries
 # ==========================================================================
