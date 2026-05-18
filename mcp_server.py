@@ -399,5 +399,12 @@ def get_known_verbs() -> str:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    print(f"Starting OntoBridge MCP server → {BASE_URL}")
-    mcp.run()
+    port = int(os.environ.get("MCP_PORT", "0"))
+    if port:
+        # HTTP/SSE mode — for inspector testing and GCP deployment
+        print(f"Starting OntoBridge MCP server (SSE) on port {port} -> {BASE_URL}")
+        mcp.run(transport="sse", port=port)
+    else:
+        # STDIO mode — for Claude desktop / Claude Code
+        print(f"Starting OntoBridge MCP server (STDIO) -> {BASE_URL}")
+        mcp.run(transport="stdio")
