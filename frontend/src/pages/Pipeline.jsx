@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 
 export default function Pipeline() {
+  const navigate = useNavigate()
   const [file,       setFile]       = useState(null)
   const [sourceSystem, setSourceSystem] = useState('upload')
   const [approvedBy, setApprovedBy] = useState('')
@@ -148,7 +150,10 @@ export default function Pipeline() {
                   <thead><tr><th>Term</th><th>Status</th><th>Scheme</th></tr></thead>
                   <tbody>
                     {result.terms.map(t => (
-                      <tr key={t.term_uri} style={{ cursor: 'default' }}>
+                      <tr key={t.term_uri}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => navigate('/terms?uri=' + encodeURIComponent(t.term_uri))}
+                      >
                         <td>
                           <div style={{ fontWeight: 500 }}>{t.preferred_label}</div>
                           <div className="mono" style={{ color: 'var(--ink-3)', marginTop: 2 }}>{t.term_uri.split('/').pop()}</div>

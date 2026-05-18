@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from rdflib import Graph, RDFS, SKOS, OWL, URIRef as _URIRef
+from rdflib import Graph, RDFS, SKOS, OWL, RDF, URIRef as _URIRef
 from rdflib.term import URIRef, BNode
 
 _CMNS_AV = "https://www.omg.org/spec/Commons/AnnotationVocabulary/"
@@ -21,6 +21,10 @@ class FiboIndex:
     label_by_uri:      dict[str, str]        = field(default_factory=dict)
     # direct parent URI from rdfs:subClassOf (named classes only, no BNodes)
     parent_by_uri:     dict[str, str]        = field(default_factory=dict)
+    # OWL restrictions: class URI → [(property_uri, range_uri), ...]
+    restrictions_by_uri: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    # owl:inverseOf: property_uri → inverse_property_uri
+    inverse_of: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_paths(cls, paths: Iterable[Path | str]) -> "FiboIndex":
@@ -105,13 +109,37 @@ class FiboIndex:
                 if definition:
                     self.uri_to_definition[uri] = definition
 
-        # --- rdfs:subClassOf hierarchy (named classes only, skip BNodes) ---
+        # --- rdfs:subClassOf: hierarchy (named) + OWL restrictions ---
         for subject, _, obj in graph.triples((None, RDFS.subClassOf, None)):
             if isinstance(subject, URIRef) and isinstance(obj, URIRef):
                 s, o = str(subject), str(obj)
-                # only store the first parent found; skip owl:Thing
                 if s not in self.parent_by_uri and "owl#Thing" not in o:
                     self.parent_by_uri[s] = o
+            elif isinstance(subject, URIRef) and isinstance(obj, BNode):
+                if (obj, RDF.type, OWL.Restriction) not in graph:
+                    continue
+                prop = graph.value(obj, OWL.onProperty)
+                range_ = (
+                    graph.value(obj, OWL.someValuesFrom)
+                    or graph.value(obj, OWL.onClass)
+                )
+                if (
+                    prop and range_
+                    and isinstance(prop, URIRef)
+                    and isinstance(range_, URIRef)
+                ):
+                    s = str(subject)
+                    entry = (str(prop), str(range_))
+                    lst = self.restrictions_by_uri.setdefault(s, [])
+                    if entry not in lst:
+                        lst.append(entry)
+
+        # --- owl:inverseOf (both directions) ---
+        for prop, _, inv in graph.triples((None, OWL.inverseOf, None)):
+            if isinstance(prop, URIRef) and isinstance(inv, URIRef):
+                p, i = str(prop), str(inv)
+                self.inverse_of.setdefault(p, i)
+                self.inverse_of.setdefault(i, p)
 
     @staticmethod
     def _label_text(node) -> str:

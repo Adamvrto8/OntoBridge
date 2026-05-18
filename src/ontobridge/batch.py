@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from ontobridge.agents.definition.agent import LLMDefinitionAgent
+from ontobridge.agents.fibo.matcher import FiboMatcher
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.harvester.agent import HarvesterAgent
 from ontobridge.agents.policy_linker import PolicyLinkerAgent
-from ontobridge.models.enrichment import EnrichedTerm
+from ontobridge.models.enrichment import CandidateLabel, EnrichedTerm
 from ontobridge.models.published import PublishedTerm
 from ontobridge.pipeline import PipelineRunner
 from ontobridge.pipeline_config import PipelineConfig
@@ -108,12 +109,14 @@ class BatchPipelineRunner:
         on_progress: ProgressCallback | None = None,
         policy_linker: PolicyLinkerAgent | None = None,
         definition_agent: LLMDefinitionAgent | None = None,
+        fibo_matcher: FiboMatcher | None = None,
     ) -> None:
         self._runner = PipelineRunner(
             ontology, publisher,
             config=config,
             policy_linker=policy_linker,
             definition_agent=definition_agent,
+            fibo_matcher=fibo_matcher,
         )
         self._harvester = harvester or HarvesterAgent()
         self._on_progress = on_progress
@@ -130,8 +133,9 @@ class BatchPipelineRunner:
     ) -> BatchResult:
         """Process a pre-harvested list of EnrichedTerms through the pipeline."""
         result = BatchResult()
-        total = len(terms)
-        for i, term in enumerate(terms):
+        deduped = self._deduplicate_by_fibo(list(terms), result)
+        total = len(deduped)
+        for i, term in enumerate(deduped):
             self._process_one(term, result, approved_by=approved_by)
             if self._on_progress:
                 self._on_progress(i + 1, total)
@@ -180,6 +184,63 @@ class BatchPipelineRunner:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    _MATCH_RANK: dict[str, int] = {"exact": 0, "close": 1, "broad": 2}
+
+    def _deduplicate_by_fibo(
+        self,
+        terms: list[EnrichedTerm],
+        result: BatchResult,
+    ) -> list[EnrichedTerm]:
+        """Merge terms that map to the same FIBO URI into the best-matched one.
+
+        The winner is the term with the highest-quality FIBO match (exact >
+        close > broad).  Loser labels are folded into the winner's
+        candidate_labels at reduced confidence so they appear as alt_labels.
+        Losers are added to BatchResult.skipped with a merge reason.
+        """
+        by_fibo: dict[str, list[EnrichedTerm]] = {}
+        no_fibo: list[EnrichedTerm] = []
+
+        for term in terms:
+            if term.fibo_match:
+                by_fibo.setdefault(term.fibo_match.uri, []).append(term)
+            else:
+                no_fibo.append(term)
+
+        deduped: list[EnrichedTerm] = list(no_fibo)
+
+        for fibo_uri, group in by_fibo.items():
+            if len(group) == 1:
+                deduped.append(group[0])
+                continue
+
+            group.sort(key=lambda t: (
+                self._MATCH_RANK.get(t.fibo_match.match_type, 3),  # type: ignore[union-attr]
+                -max((c.confidence for c in t.candidate_labels), default=0.0),
+            ))
+            winner, *losers = group
+
+            existing = {c.text.lower() for c in winner.candidate_labels}
+            for loser in losers:
+                for lbl in loser.candidate_labels:
+                    if lbl.text.lower() not in existing:
+                        winner.candidate_labels.append(
+                            CandidateLabel(
+                                text=lbl.text,
+                                confidence=lbl.confidence * 0.8,
+                                ner_label=lbl.ner_label,
+                            )
+                        )
+                        existing.add(lbl.text.lower())
+                result.skipped.append((
+                    loser,
+                    f"merged into '{winner.preferred_label}' (same FIBO URI: {fibo_uri})",
+                ))
+
+            deduped.append(winner)
+
+        return deduped
 
     def _process_one(
         self,

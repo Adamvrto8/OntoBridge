@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 
-from ontobridge.api.deps import AuditDep, OntologyDep, PublisherDep
+from ontobridge.api.deps import AuditDep, FiboMatcherDep, OntologyDep, PublisherDep
 from ontobridge.api.schemas import PipelineRunResponse, TermSummary
 from ontobridge.agents.fibo import FiboIndex, FiboMatcher
 from ontobridge.agents.harvester.agent import HarvesterAgent
@@ -30,6 +30,7 @@ _fibo_matcher_cache: object = _FIBO_NOT_LOADED
 def _find_fibo_dir() -> Path | None:
     repo_root = Path(__file__).resolve().parents[4]
     candidates = [
+        repo_root / "ontology" / "fibo",
         repo_root / "fibo-master" / "fibo-master",
         repo_root / "fibo-master",
         repo_root / "fibo",
@@ -62,6 +63,7 @@ async def run_pipeline(
     publisher: PublisherDep,
     ontology: OntologyDep,
     audit: AuditDep,
+    fibo_matcher: FiboMatcherDep,
     file: UploadFile,
     source_system: str = Form(default="upload"),
     approved_by: str = Form(default=""),
@@ -72,7 +74,6 @@ async def run_pipeline(
     llm_api_key: str = Form(default=""),
 ):
     api_key = llm_api_key.strip() or None
-    fibo_matcher = _build_fibo_matcher()
     harvester = HarvesterAgent(fibo_matcher=fibo_matcher)
     if use_llm_ner:
         try:
@@ -105,6 +106,7 @@ async def run_pipeline(
             publisher=publisher,
             harvester=harvester,
             definition_agent=definition_agent,
+            fibo_matcher=fibo_matcher,
         )
         result = runner.run_document(
             tmp_path,

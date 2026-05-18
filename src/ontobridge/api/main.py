@@ -42,6 +42,20 @@ def create_app(
 
         app.state.publisher = publisher
         app.state.audit_log = audit_log
+
+        # FIBO index — loaded once at startup so pipeline requests never block
+        try:
+            from ontobridge.api.routers.pipeline import _build_fibo_matcher
+            print("Loading FIBO index (this may take 1–3 minutes on first run)…")
+            app.state.fibo_matcher = _build_fibo_matcher()
+            if app.state.fibo_matcher:
+                print("FIBO index ready.")
+            else:
+                print("FIBO directory not found — running without FIBO matching.")
+        except Exception as exc:
+            print(f"FIBO loading failed: {exc} — running without FIBO matching.")
+            app.state.fibo_matcher = None
+
         yield
 
     app = FastAPI(

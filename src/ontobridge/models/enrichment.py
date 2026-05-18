@@ -118,6 +118,7 @@ class SemanticRelation:
     confidence: float = 1.0
     status: RelationStatus = RelationStatus.RESOLVED
     object_uri: str | None = None
+    source: str | None = None  # "fibo" | "llm" | "svo"
 
     def __post_init__(self) -> None:
         if not self.subject_uri or not self.subject_uri.strip():

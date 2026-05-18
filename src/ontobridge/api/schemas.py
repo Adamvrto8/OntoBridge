@@ -81,8 +81,11 @@ class TermSummary(BaseModel):
 
 class RelationOut(BaseModel):
     predicate: str
+    verb: str
     object_label: str
     object_uri: str | None
+    status: str   # resolved | confirmed | proposed | unresolved_verb | fibo_match
+    source: str | None  # fibo | llm | svo
 
 
 class TermDetail(TermSummary):
@@ -94,6 +97,8 @@ class TermDetail(TermSummary):
     relations: list[RelationOut]
     document_id: str | None
     published_at: datetime | None
+    fibo_uri: str | None
+    fibo_match_type: str | None
 
     @classmethod
     def from_published(cls, t, ontology=None) -> "TermDetail":
@@ -133,8 +138,11 @@ class TermDetail(TermSummary):
         relations = [
             RelationOut(
                 predicate=_last_segment(r.predicate_uri) or r.predicate_uri or getattr(r, "verb", None) or "—",
+                verb=getattr(r, "verb", None) or "—",
                 object_label=r.object_label or "—",
                 object_uri=getattr(r, "object_uri", None),
+                status=r.status.value if hasattr(r.status, "value") else str(r.status),
+                source=getattr(r, "source", None),
             )
             for r in (et.relations or [])
             if r.object_label
@@ -142,6 +150,7 @@ class TermDetail(TermSummary):
 
         rules = [br.rule_text for br in (et.business_rules or [])]
 
+        fibo = et.fibo_match
         return cls(
             term_uri=t.term_uri,
             preferred_label=et.preferred_label or "",
@@ -165,6 +174,8 @@ class TermDetail(TermSummary):
             relations=relations,
             document_id=sr.document_id if sr else None,
             published_at=t.published_at,
+            fibo_uri=fibo.uri if fibo else None,
+            fibo_match_type=fibo.match_type if fibo else None,
         )
 
 
@@ -172,6 +183,12 @@ class StatusTransitionRequest(BaseModel):
     new_status: str
     actor: str | None = None
     comment: str | None = None
+
+
+class RelationActionRequest(BaseModel):
+    verb: str
+    object_label: str
+    action: str  # "approve" | "reject"
 
 
 class PipelineRunResponse(BaseModel):

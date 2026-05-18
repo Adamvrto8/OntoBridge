@@ -8,6 +8,7 @@ from ontobridge.agents.mapping import MappingAgent, from_ontology
 from ontobridge.agents.mapping.glossary import GlossarySource
 from ontobridge.agents.mapping.strategies import Encoder
 from ontobridge.agents.definition.agent import LLMDefinitionAgent
+from ontobridge.agents.fibo.matcher import FiboMatcher
 from ontobridge.agents.policy_linker import PolicyLinkerAgent
 from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
@@ -54,6 +55,7 @@ class PipelineRunner:
         config: PipelineConfig | None = None,
         policy_linker: PolicyLinkerAgent | None = None,
         definition_agent: LLMDefinitionAgent | None = None,
+        fibo_matcher: FiboMatcher | None = None,
     ):
         cfg = config or PipelineConfig(encoder=encoder)
 
@@ -62,6 +64,7 @@ class PipelineRunner:
         self.config = cfg
         self.policy_linker = policy_linker
         self.definition_agent = definition_agent
+        self.fibo_matcher = fibo_matcher
         self.glossary: GlossarySource = (
             glossary if glossary is not None else from_ontology(ontology)
         )
@@ -77,7 +80,12 @@ class PipelineRunner:
             placement_threshold=cfg.placement_threshold,
             sibling_conflict_threshold=cfg.sibling_conflict_threshold,
         )
-        self.relations = RelationsAgent(ontology)
+        llm_backend = definition_agent._backend if definition_agent is not None else None
+        self.relations = RelationsAgent(
+            ontology,
+            fibo_matcher=fibo_matcher,
+            llm_backend=llm_backend,
+        )
         self.governance = GovernanceAgent(ontology)
         self.writer = WriterAgent(
             publisher,

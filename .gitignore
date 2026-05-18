@@ -43,5 +43,6 @@ examples/output/
 frontend/node_modules/
 frontend/dist/
 
-# FIBO ontology directory
+# FIBO ontology directory (cloned separately — not part of this repo)
 fibo-master/
+ontology/fibo/

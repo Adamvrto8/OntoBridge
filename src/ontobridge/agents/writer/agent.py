@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from urllib.parse import quote
 
 from rdflib import Graph, Literal, Namespace, URIRef
@@ -10,7 +11,7 @@ from ontobridge.agents.taxonomy import camelcase_label
 from ontobridge.models.enrichment import EnrichedTerm
 from ontobridge.models.enums import RelationStatus
 from ontobridge.models.published import PublishedTerm
-from ontobridge.publisher.base import TermPublisher
+from ontobridge.publisher.base import TermNotFoundError, TermPublisher
 
 DEFAULT_BANK_NAMESPACE = "http://ontobridge.dev/ontology/bank/"
 DEFAULT_REL_NAMESPACE = "http://ontobridge.dev/ontology/bank/relations/"
@@ -66,6 +67,7 @@ class WriterAgent:
     ) -> PublishedTerm:
         published = self.assemble(term, term_uri=term_uri, approved_by=approved_by)
         self.publisher.create_term(published)
+        self._add_narrower_to_parent(published)
         return published
 
     # ---------------- Turtle serialization ----------------
@@ -90,6 +92,7 @@ class WriterAgent:
         self._emit_taxonomy(g, subject, enriched)
         self._emit_fibo(g, subject, enriched)
         self._emit_relations(g, subject, enriched)
+        self._emit_business_rules(g, subject, enriched)
         self._emit_provenance(g, subject, enriched)
         g.add((
             subject,
@@ -127,24 +130,40 @@ class WriterAgent:
         if placement.scheme_uri:
             g.add((subject, SKOS.inScheme, URIRef(placement.scheme_uri)))
 
+    _FIBO_MATCH_PRED: dict[str, object] = {
+        "exact": SKOS.exactMatch,
+        "close": SKOS.closeMatch,
+        "broad": SKOS.broadMatch,
+    }
+
     @staticmethod
     def _emit_fibo(g: Graph, subject: URIRef, enriched: EnrichedTerm) -> None:
-        if enriched.fibo_match and enriched.fibo_match.uri:
-            g.add((subject, SKOS.exactMatch, URIRef(enriched.fibo_match.uri)))
+        if not enriched.fibo_match or not enriched.fibo_match.uri:
+            return
+        pred = WriterAgent._FIBO_MATCH_PRED.get(
+            enriched.fibo_match.match_type, SKOS.exactMatch
+        )
+        g.add((subject, pred, URIRef(enriched.fibo_match.uri)))
 
     def _emit_relations(self, g: Graph, subject: URIRef, enriched: EnrichedTerm) -> None:
+        declared: set[tuple[str, str]] = set()
         for rel in enriched.relations:
             if rel.status is not RelationStatus.RESOLVED:
                 continue
-            if not rel.predicate_uri:
+            if not rel.predicate_uri or not rel.inverse_predicate_uri:
                 continue
+            pred = URIRef(rel.predicate_uri)
+            inv_pred = URIRef(rel.inverse_predicate_uri)
             obj_term = self._resolve_object(rel.object_label)
-            g.add((subject, URIRef(rel.predicate_uri), obj_term))
-            # Emit the inverse as a forward triple from object → subject only when
-            # the object resolved to a URI; with a literal object, the inverse is
-            # implicit via owl:inverseOf on the property declaration.
-            if isinstance(obj_term, URIRef) and rel.inverse_predicate_uri:
-                g.add((obj_term, URIRef(rel.inverse_predicate_uri), subject))
+            g.add((subject, pred, obj_term))
+            if isinstance(obj_term, URIRef):
+                g.add((obj_term, inv_pred, subject))
+            pair = (rel.predicate_uri, rel.inverse_predicate_uri)
+            if pair not in declared:
+                declared.add(pair)
+                g.add((pred, RDF.type, OWL.ObjectProperty))
+                g.add((inv_pred, RDF.type, OWL.ObjectProperty))
+                g.add((pred, OWL.inverseOf, inv_pred))
 
     @staticmethod
     def _emit_provenance(g: Graph, subject: URIRef, enriched: EnrichedTerm) -> None:
@@ -155,6 +174,32 @@ class WriterAgent:
             if ctx.section:
                 ref += f"#section-{quote(ctx.section, safe='')}"
             g.add((subject, DCTERMS.source, URIRef(ref)))
+
+    @staticmethod
+    def _emit_business_rules(g: Graph, subject: URIRef, enriched: EnrichedTerm) -> None:
+        for rule in enriched.business_rules:
+            if rule.rule_text:
+                g.add((subject, SKOS.scopeNote, Literal(rule.rule_text, lang=_LANG)))
+
+    def _add_narrower_to_parent(self, published: PublishedTerm) -> None:
+        placement = published.enriched_term.taxonomy_placement
+        if placement is None or not placement.broader_concept_uri:
+            return
+        parent_uri = placement.broader_concept_uri
+        try:
+            parent = self.publisher.get_term(parent_uri)
+        except (TermNotFoundError, KeyError):
+            return
+        if not parent.turtle:
+            return
+        g = Graph()
+        g.parse(data=parent.turtle, format="turtle")
+        child_ref = URIRef(published.term_uri)
+        parent_ref = URIRef(parent_uri)
+        if (parent_ref, SKOS.narrower, child_ref) not in g:
+            g.add((parent_ref, SKOS.narrower, child_ref))
+            updated = replace(parent, turtle=g.serialize(format="turtle"))
+            self.publisher.update_term(parent_uri, updated)
 
     def _resolve_object(self, label: str) -> URIRef | Literal:
         uri = self._label_to_uri.get(label.casefold())

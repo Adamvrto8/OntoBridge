@@ -20,6 +20,26 @@ const STATUS_PILL = {
 
 const lcOrder = ['candidate', 'draft', 'review', 'published']
 
+const REL_STATUS = {
+  resolved:       { color: 'var(--green)',  label: 'confirmed' },
+  confirmed:      { color: 'var(--green)',  label: 'confirmed' },
+  fibo_match:     { color: 'var(--green)',  label: 'fibo' },
+  proposed:       { color: 'var(--amber)',  label: 'proposed' },
+  unresolved_verb:{ color: 'var(--ink-3)', label: 'unresolved' },
+}
+
+const FIBO_MATCH_LABEL = {
+  exact: { color: 'var(--green)', text: 'exact match' },
+  close: { color: 'var(--amber)', text: 'close match' },
+  broad: { color: 'var(--slate-d)', text: 'broad match' },
+}
+
+const SOURCE_TAG = {
+  fibo: { color: '#0ea5e9', bg: '#0ea5e91a', label: 'FIBO' },
+  llm:  { color: '#8b5cf6', bg: '#8b5cf61a', label: 'LLM'  },
+  svo:  { color: 'var(--ink-3)', bg: 'var(--surface)', label: 'text' },
+}
+
 export default function TermDetail() {
   const [searchParams] = useSearchParams()
   const uri = searchParams.get('uri')
@@ -193,6 +213,13 @@ export default function TermDetail() {
 
   const cancelRels = () => { setEditingRels(false); setRelsDeleted(new Set()); setRelsToAdd([]) }
 
+  const actOnRelation = async (verb, object_label, action) => {
+    try {
+      await api.terms.updateRelation(uri, { verb, object_label, action })
+      load()
+    } catch (e) { alert(e.message) }
+  }
+
   if (!uri)    return <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>No term URI provided.</p>
   if (loading) return <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>Loading…</p>
   if (error)   return (
@@ -206,15 +233,15 @@ export default function TermDetail() {
   const nextStatuses = TRANSITIONS[term.lifecycle_status] || []
   const lcIdx = lcOrder.indexOf(term.lifecycle_status)
 
+  const resolvedRels  = (term.relations || []).filter(r => r.status === 'resolved' || r.status === 'confirmed' || r.status === 'fibo_match')
+  const proposedRels  = (term.relations || []).filter(r => r.status === 'proposed')
+  const unresolvedRels = (term.relations || []).filter(r => r.status === 'unresolved_verb')
+
   return (
     <>
       <div className="page-head">
         <div>
-          <button
-            className="btn ghost"
-            onClick={() => navigate(-1)}
-            style={{ marginBottom: 8, paddingLeft: 0 }}
-          >
+          <button className="btn ghost" onClick={() => navigate(-1)} style={{ marginBottom: 8, paddingLeft: 0 }}>
             ← Back
           </button>
           <h1>{term.preferred_label}</h1>
@@ -239,7 +266,7 @@ export default function TermDetail() {
 
       <div style={{ maxWidth: 800, display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
 
-        {/* Main card */}
+        {/* Definition */}
         <div className="card">
           <div className="card-h">
             <h3>Definition</h3>
@@ -349,9 +376,7 @@ export default function TermDetail() {
 
             {term.business_rules?.length > 0 && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ font: '500 10.5px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-3)', marginBottom: 8 }}>
-                  Business rules
-                </div>
+                <SectionLabel>Business rules</SectionLabel>
                 {term.business_rules.map((r, i) => (
                   <div key={i} style={{
                     display: 'flex', gap: 10, padding: '6px 0',
@@ -451,6 +476,26 @@ export default function TermDetail() {
           )}
         </div>
 
+        {/* FIBO match */}
+        {term.fibo_uri && (
+          <div className="card">
+            <div className="card-h">
+              <h3>FIBO mapping</h3>
+              {term.fibo_match_type && (() => {
+                const m = FIBO_MATCH_LABEL[term.fibo_match_type]
+                return m
+                  ? <span className="pill" style={{ background: m.color + '22', color: m.color, border: `1px solid ${m.color}44` }}>{m.text}</span>
+                  : null
+              })()}
+            </div>
+            <div className="card-b">
+              <span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)', wordBreak: 'break-all' }}>
+                {term.fibo_uri}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Semantic relations */}
         <div className="card">
           <div className="card-h">
@@ -542,21 +587,40 @@ export default function TermDetail() {
                 <div style={{ padding: '16px', color: 'var(--ink-3)', fontSize: 13, fontStyle: 'italic' }}>
                   No relations — click Edit to add one.
                 </div>
-              ) : term.relations.map((r, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
-                  borderBottom: i < term.relations.length - 1 ? '1px solid var(--ice)' : 0,
-                  fontSize: 13,
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
-                  <span className="mono" style={{ color: 'var(--slate-d)' }}>{r.predicate}</span>
-                  <span style={{ color: 'var(--ink-3)' }}>→</span>
-                  <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{r.object_label}</span>
-                  {r.object_uri && (
-                    <span className="mono" style={{ color: 'var(--ink-3)', fontSize: 11 }}>{r.object_uri.split('/').pop()}</span>
+              ) : (
+                <>
+                  {resolvedRels.map((r, i) => (
+                    <RelationRow key={`r-${i}`} r={r} last={i === resolvedRels.length - 1 && proposedRels.length === 0 && unresolvedRels.length === 0} />
+                  ))}
+
+                  {proposedRels.length > 0 && (
+                    <>
+                      <div style={{ padding: '8px 16px 4px', font: '500 10.5px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--amber)', borderTop: resolvedRels.length ? '1px solid var(--ice)' : 0 }}>
+                        Awaiting steward approval
+                      </div>
+                      {proposedRels.map((r, i) => (
+                        <RelationRow
+                          key={`p-${i}`} r={r}
+                          last={i === proposedRels.length - 1 && unresolvedRels.length === 0}
+                          onApprove={() => actOnRelation(r.verb, r.object_label, 'approve')}
+                          onReject={() => actOnRelation(r.verb, r.object_label, 'reject')}
+                        />
+                      ))}
+                    </>
                   )}
-                </div>
-              ))}
+
+                  {unresolvedRels.length > 0 && (
+                    <>
+                      <div style={{ padding: '8px 16px 4px', font: '500 10.5px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-3)', borderTop: (resolvedRels.length || proposedRels.length) ? '1px solid var(--ice)' : 0 }}>
+                        Unresolved verbs
+                      </div>
+                      {unresolvedRels.map((r, i) => (
+                        <RelationRow key={`u-${i}`} r={r} last={i === unresolvedRels.length - 1} />
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -568,7 +632,6 @@ export default function TermDetail() {
             <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px 16px', fontSize: 13 }}>
               {[
                 ['URI',         <span className="mono" style={{ color: 'var(--ink-2)' }}>{term.term_uri}</span>],
-                ['Scheme',      term.scheme_label || '—'],
                 ['Approved by', term.approved_by  || '—'],
                 ['Source',      term.source_system || '—'],
                 ['Document',    term.document_id  || '—'],
@@ -599,8 +662,7 @@ export default function TermDetail() {
                 }}
               />
               {nextStatuses.map(s => (
-                <button key={s} className="btn" onClick={() => transition(s)}
-                  style={{ textTransform: 'capitalize' }}>
+                <button key={s} className="btn" onClick={() => transition(s)} style={{ textTransform: 'capitalize' }}>
                   → {s}
                 </button>
               ))}
@@ -609,5 +671,60 @@ export default function TermDetail() {
         )}
       </div>
     </>
+  )
+}
+
+function RelationRow({ r, last, onApprove, onReject }) {
+  const s = REL_STATUS[r.status] || REL_STATUS.resolved
+  const isProposed = r.status === 'proposed'
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
+      borderBottom: last ? 0 : '1px solid var(--ice)', fontSize: 13,
+      opacity: r.status === 'unresolved_verb' ? 0.5 : 1,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+      <span className="mono" style={{ color: 'var(--slate-d)' }}>{r.predicate}</span>
+      <span style={{ color: 'var(--ink-3)' }}>→</span>
+      <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{r.object_label}</span>
+      {r.object_uri && (
+        <span className="mono" style={{ color: 'var(--ink-3)', fontSize: 11 }}>{r.object_uri.split('/').pop()}</span>
+      )}
+      {r.source && SOURCE_TAG[r.source] && (
+        <span style={{
+          font: '500 9px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.07em',
+          padding: '2px 5px', borderRadius: 3,
+          color: SOURCE_TAG[r.source].color, background: SOURCE_TAG[r.source].bg,
+          border: `1px solid ${SOURCE_TAG[r.source].color}44`,
+        }}>{SOURCE_TAG[r.source].label}</span>
+      )}
+      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {isProposed && (
+          <>
+            <button onClick={onApprove} title="Approve" style={{
+              width: 22, height: 22, borderRadius: 4, border: '1px solid var(--green)',
+              background: 'transparent', color: 'var(--green)', cursor: 'pointer',
+              fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>✓</button>
+            <button onClick={onReject} title="Reject" style={{
+              width: 22, height: 22, borderRadius: 4, border: '1px solid var(--red)',
+              background: 'transparent', color: 'var(--red)', cursor: 'pointer',
+              fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>✗</button>
+          </>
+        )}
+        <span style={{ font: '500 10px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', color: s.color }}>
+          {s.label}
+        </span>
+      </span>
+    </div>
+  )
+}
+
+function SectionLabel({ children }) {
+  return (
+    <div style={{ font: '500 10.5px var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-3)', marginBottom: 8 }}>
+      {children}
+    </div>
   )
 }

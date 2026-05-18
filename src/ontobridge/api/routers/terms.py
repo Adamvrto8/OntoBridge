@@ -7,7 +7,7 @@ import io
 from dataclasses import replace
 
 from ontobridge.api.deps import AuditDep, OntologyDep, PublisherDep
-from ontobridge.api.schemas import StatusTransitionRequest, TermDetail, TermPatch, TermSummary
+from ontobridge.api.schemas import RelationActionRequest, StatusTransitionRequest, TermDetail, TermPatch, TermSummary
 from ontobridge.agents.relations.lexicon import InverseVerbLexicon
 from ontobridge.models.enrichment import CandidateLabel, SemanticRelation, TaxonomyPlacement
 from ontobridge.models.enums import PlacementStatus, RelationStatus
@@ -189,3 +189,40 @@ def transition_status(
     ))
 
     return TermSummary.from_published(updated)
+
+
+@router.patch("/{term_id:path}/relations", response_model=TermDetail)
+def update_relation(
+    term_id: str,
+    body: RelationActionRequest,
+    publisher: PublisherDep,
+):
+    if body.action not in ("approve", "reject"):
+        raise HTTPException(status_code=422, detail="action must be 'approve' or 'reject'")
+    try:
+        term = publisher.get_term(term_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Term not found")
+
+    et = term.enriched_term
+    for i, r in enumerate(et.relations):
+        if r.verb == body.verb and r.object_label == body.object_label and r.status == RelationStatus.PROPOSED:
+            if body.action == "reject":
+                et.relations.pop(i)
+            else:
+                new_status = (
+                    RelationStatus.RESOLVED
+                    if r.predicate_uri and r.inverse_predicate_uri
+                    else RelationStatus.CONFIRMED
+                )
+                r.status = new_status
+            break
+    else:
+        raise HTTPException(status_code=404, detail="Proposed relation not found")
+
+    try:
+        updated = publisher.update_term(term_id, term)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    return TermDetail.from_published(updated)

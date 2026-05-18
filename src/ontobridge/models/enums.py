@@ -40,5 +40,7 @@ class PlacementStatus(str, Enum):
 
 class RelationStatus(str, Enum):
     RESOLVED = "resolved"
+    CONFIRMED = "confirmed"   # steward-approved proposal without a lexicon URI
     UNRESOLVED_VERB = "unresolved_verb"
     FIBO_MATCH = "fibo_match"
+    PROPOSED = "proposed"

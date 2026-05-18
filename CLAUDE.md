@@ -13,10 +13,14 @@ pip install anthropic   # for Claude API support
 pip install rdflib      # for FIBO ontology matching
 
 # Run API server (demo mode — resets on restart)
-uvicorn api_server:app --reload
+# NOTE: do NOT use --reload; FIBO index takes 1-3 min to load at startup
+cd "c:\Users\Tomáš Kočí\OntoBridge\OntoBridge"; uvicorn api_server:app
 
 # Run API server (persistent SQLite)
-$env:DB_PATH = "ontobridge.db"; uvicorn api_server:app --reload
+$env:DB_PATH = "ontobridge.db"; uvicorn api_server:app
+
+# Kill all running backend/frontend processes
+taskkill /F /IM uvicorn.exe; taskkill /F /IM python.exe; taskkill /F /IM node.exe
 
 # Shared team server (builds frontend, binds 0.0.0.0, prints LAN IP)
 .\start_server.ps1 -Port 8001          # port 8000 taken on this machine
@@ -46,6 +50,8 @@ npm run build
 npm run lint
 ```
 
+**Important:** every Python change requires a manual backend restart (no --reload). Wait for `FIBO index ready.` in the terminal before submitting pipeline requests.
+
 ## Architecture
 
 ### Two interfaces, one backend
@@ -58,26 +64,27 @@ npm run lint
 ```
 Browser → Vite dev server (:5173)
     /api/* → FastAPI (:8000)
-        app.state.publisher  (InMemoryPublisher or SqlitePublisher)
-        app.state.ontology   (OntologyIndex from .ttl file)
+        app.state.publisher     (InMemoryPublisher or SqlitePublisher)
+        app.state.ontology      (OntologyIndex from .ttl file)
         app.state.audit_log
+        app.state.fibo_matcher  (FiboMatcher, loaded once at startup)
 ```
 
-State is stored on `app.state` at startup in `src/ontobridge/api/main.py` via FastAPI lifespan. All routers access it through typed dependency functions in `src/ontobridge/api/deps.py` (`PublisherDep`, `AuditDep`, `OntologyDep`).
+State is stored on `app.state` at startup in `src/ontobridge/api/main.py` via FastAPI lifespan. All routers access it through typed dependency functions in `src/ontobridge/api/deps.py` (`PublisherDep`, `AuditDep`, `OntologyDep`, `FiboMatcherDep`).
 
 ### Pipeline execution order
 
-Each document upload triggers `BatchPipelineRunner.run_document()` → `PipelineRunner.run()` per term:
+Each document upload triggers `BatchPipelineRunner.run_document()` → deduplication by FIBO URI → `PipelineRunner.run()` per term:
 
 ```
 HarvesterAgent      reads file, calls extractor per RawDocument chunk
   ↓ EnrichedTerm with candidate_labels + definition
 FiboMatcher         label/synonym/abbreviation lookup against FIBO index
-  ↓ fibo_match (uri, broader_uri, broader_label, module, alt_labels)
+  ↓ fibo_match (uri, match_type, broader_uri, broader_label, module, alt_labels)
 MappingAgent        duplicate/fuzzy detection against published glossary
 TaxonomyAgent       FIBO hierarchy placement (falls back to ontology similarity)
 LLMDefinitionAgent  (optional) rewrites definition + generates IF/THEN business rules
-RelationsAgent      SVO regex extraction + FIBO skos:closeMatch injection
+RelationsAgent      4-stage relation extraction (see below)
 PipelineRunner      resolves relation object labels to published term URIs
 GovernanceAgent     evaluates 14 rules → GovResult (findings, recommended_action)
 WriterAgent         mints term URI, serialises to Turtle, calls publisher.create_term()
@@ -85,13 +92,54 @@ WriterAgent         mints term URI, serialises to Turtle, calls publisher.create
 
 All tuneable thresholds live in `src/ontobridge/pipeline_config.py` (`PipelineConfig`).
 
+#### RelationsAgent — 4 stages
+
+1. **SVO text extraction** (always) — regex heuristic over definition + policy_context paragraphs → `source="svo"`
+2. **FIBO OWL restrictions** (when `fibo_match` exists) — reads `FiboIndex.restrictions_by_uri` for the matched FIBO URI:
+   - exact match + inverse_uri → `RESOLVED`, `source="fibo"`, confidence 0.9
+   - exact match without inverse_uri → `PROPOSED` fallback, `source="fibo"`, confidence 0.75
+   - close/broad match → all restrictions as `PROPOSED`, `source="fibo"`, confidence 0.7
+   - always appends a `skos:exactMatch` or `skos:closeMatch` FIBO_MATCH relation to the FIBO URI
+3. **Inherited FIBO from broader concept** (when no `fibo_match`) — extracts label from `taxonomy_placement.broader_concept_uri`, looks it up in FIBO, passes its restrictions to LLM as context only (not shown in UI directly — too generic, e.g. FND/Customer has `buysFrom → Supplier`)
+4. **LLM proposals** (when `llm_backend` set) — runs for ALL terms regardless of FIBO match; receives FIBO restrictions as context → `PROPOSED`, `source="llm"`, confidence 0.5
+
+#### BatchPipelineRunner — FIBO URI deduplication
+
+Before processing, `_deduplicate_by_fibo()` groups terms sharing the same `fibo_match.uri`. The winner is the term with the best `match_type` (exact > close > broad). Loser's `candidate_labels` are merged into winner as lower-confidence alt_labels. Losers go to `BatchResult.skipped` with reason `"merged into '...' (same FIBO URI: ...)"`.
+
+Example: uploading a document containing both "Loan-to-Value Ratio" (exact match) and "LTV" (close match) → only "Loan-to-Value Ratio" is published, "ltv" becomes its alt_label.
+
 ### Key data models
 
 - `EnrichedTerm` (`models/enrichment.py`) — the central object passed through every pipeline stage. Contains `candidate_labels`, `definition`, `fibo_match`, `taxonomy_placement`, `relations`, `governance_result`.
 - `PublishedTerm` (`models/published.py`) — wraps `EnrichedTerm` with `term_uri`, `lifecycle_status`, `approved_by`, `version`.
-- `FIBOMatch` (`models/fibo.py`) — `uri`, `expected_definition`, `alt_labels`, `broader_uri`, `broader_label`, `module`.
-- `SemanticRelation` (`models/enrichment.py`) — `subject_uri`, `predicate_uri`, `object_label`, `object_uri`, `verb`, `status` (RESOLVED / UNRESOLVED_VERB / FIBO_MATCH).
+- `FIBOMatch` (`models/fibo.py`) — `uri`, `match_type` ("exact"/"close"/"broad"), `expected_definition`, `alt_labels`, `broader_uri`, `broader_label`, `module`.
+- `SemanticRelation` (`models/enrichment.py`) — `subject_uri`, `predicate_uri`, `object_label`, `object_uri`, `verb`, `status`, `source` ("fibo"/"llm"/"svo"), `confidence`.
 - `GovResult` (`agents/governance/models.py`) — `findings: list[RuleFinding]`, `recommended_action` (block/draft/review/publish), `blocking_flags`.
+
+#### RelationStatus enum (`models/enums.py`)
+
+| Value | Meaning | UI colour |
+|-------|---------|-----------|
+| `resolved` | Confirmed relation with both predicate_uri and inverse_predicate_uri | green |
+| `confirmed` | Steward-approved proposal without lexicon URI | green |
+| `fibo_match` | skos:exactMatch / skos:closeMatch link to FIBO URI | green |
+| `proposed` | Awaiting steward approval (from FIBO or LLM) | amber |
+| `unresolved_verb` | SVO extraction — verb not in InverseVerbLexicon | grey |
+
+### Relation stewardship
+
+Stewards approve or reject individual `proposed` relations via:
+
+```
+PATCH /api/terms/{term_uri}/relations
+Body: { "verb": "influences", "object_label": "Mortgage Interest Rate", "action": "approve" | "reject" }
+```
+
+- **approve**: status → `RESOLVED` (if predicate_uri + inverse_predicate_uri exist) or `CONFIRMED` (if no URI)
+- **reject**: removes the relation from the list
+
+Relations are identified by `(verb, object_label)` pair. Frontend sends `r.verb` (raw string), not `r.predicate` (display label).
 
 ### Term URI navigation
 
@@ -99,12 +147,135 @@ Term URIs contain slashes (e.g. `http://ontobridge.dev/ontology/bank/Loan`). Rea
 
 ### FIBO integration
 
-`FiboIndex` (`agents/fibo/loader.py`) is built once and cached as a module-level singleton in `api/routers/pipeline.py`. It indexes:
-- `rdfs:label`, `skos:altLabel` — for primary label matching
-- `cmns-av:synonym`, `cmns-av:abbreviation` — for synonym/abbreviation matching (418 + 810 entries)
-- `rdfs:subClassOf` — for taxonomy hierarchy (2884 parent relationships)
+`FiboIndex` (`agents/fibo/loader.py`) is built once at server startup via lifespan in `api/main.py`, stored on `app.state.fibo_matcher`, and injected into routes via `FiboMatcherDep`. It indexes:
 
-FIBO folder is auto-detected at `../fibo`, `./fibo`, `./fibo-master`, `./fibo-master/fibo-master`. First pipeline run after server restart is slow (~30–60s) while FIBO loads; subsequent runs use the cache.
+- `rdfs:label`, `skos:altLabel` — primary label matching
+- `cmns-av:synonym`, `cmns-av:abbreviation` — synonym/abbreviation matching
+- `rdfs:subClassOf` (named) — taxonomy hierarchy (`parent_by_uri`)
+- `rdfs:subClassOf` (BNode) — OWL restrictions (`restrictions_by_uri`): pattern `Class subClassOf [owl:Restriction onProperty P someValuesFrom/onClass R]`
+- `owl:inverseOf` — both directions (`inverse_of`)
+
+FIBO folder is auto-detected at `ontology/fibo`, `../fibo`, `./fibo`, `./fibo-master`, `./fibo-master/fibo-master`. Server prints `FIBO index ready.` when done (1–3 min first run).
+
+#### FIBO modules (indexed)
+
+| Module | Classes | Domain |
+|--------|---------|--------|
+| FBC | 9 983 | Financial Business and Commerce — banks, accounts, payments, clients, regulation |
+| FND | 1 501 | Foundations — generic concepts (Agent, Party, Customer, Contract, Money) |
+| SEC | 1 315 | Securities — stocks, bonds, derivatives |
+| BE | 996 | Business Entities — legal persons, corporations |
+| IND | 766 | Indicators — interest rates, economic indices |
+| DER | 463 | Derivatives — futures, swaps, options |
+| BP | 417 | Business Processes |
+| LOAN | 341 | Loans — mortgages, repayment, LTV |
+| ACTUS | 244 | ACTUS — standardised financial contract models |
+| MD | 156 | Market Data |
+| CAE | 153 | Corporate Actions and Events |
+
+**Note:** FND concepts (Customer, Client, Party…) are generic. FIBO `Customer` has only `buysFrom → Supplier` which is wrong for banking. Prefer FBC/LOAN matches when available. `Borrower` (FBC) has `owes → debt`.
+
+### Ontology layer — what gets emitted per term
+
+`WriterAgent` (`agents/writer/agent.py`) serialises each `PublishedTerm` to Turtle. Every term is a `skos:Concept`. Namespaces used: `skos`, `owl`, `rdfs`, `dct`, `bank:` (`http://ontobridge.dev/ontology/bank/`), `bank-rel:` (`http://ontobridge.dev/ontology/bank/relations/`).
+
+#### Labels
+
+```turtle
+bank:LoanToValueRatio
+    a skos:Concept ;
+    skos:prefLabel  "Loan-to-Value Ratio"@en ;
+    skos:altLabel   "ltv"@en ;          # all other candidate_labels
+```
+
+`candidate_labels` from `EnrichedTerm` — the highest-confidence label becomes `prefLabel`, rest become `altLabel`. Abbreviations and synonyms matched from FIBO index are folded in as `altLabel` when the term is deduplicated (e.g. LTV merges into Loan-to-Value Ratio).
+
+#### Definition
+
+```turtle
+    skos:definition "The percentage of a property's total value..."@en ;
+```
+
+#### Taxonomy — skos:broader + skos:inScheme
+
+```turtle
+    skos:broader  bank:PercentageMonetaryAmount ;
+    skos:inScheme bank:PercentageMonetaryAmount ;
+```
+
+Set from `TaxonomyPlacement.broader_concept_uri` and `scheme_uri`. After the term is published, `WriterAgent._add_narrower_to_parent()` also writes the inverse triple into the **parent** term's Turtle:
+
+```turtle
+bank:PercentageMonetaryAmount
+    skos:narrower bank:LoanToValueRatio .
+```
+
+This keeps the hierarchy navigable in both directions without a separate inference step.
+
+#### FIBO mapping — skos:exactMatch / closeMatch / broadMatch
+
+```turtle
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/LOAN/LoansGeneral/Loans/LoanToValueRatio> ;
+```
+
+Predicate is chosen from `FIBOMatch.match_type`:
+
+| match_type | SKOS predicate | When |
+|-----------|----------------|------|
+| `exact` | `skos:exactMatch` | Normalised label == primary FIBO label |
+| `close` | `skos:closeMatch` | Synonym / abbreviation match |
+| `broad` | `skos:broadMatch` | Partial / fuzzy match |
+
+#### Semantic relations — owl:ObjectProperty + owl:inverseOf
+
+Only `RESOLVED` relations (status = `resolved`) are serialised. Each relation requires both `predicate_uri` and `inverse_predicate_uri`.
+
+```turtle
+    bank-rel:isSecuredBy  bank:ResidentialProperty .
+
+bank-rel:isSecuredBy
+    a            owl:ObjectProperty ;
+    owl:inverseOf bank-rel:secures .
+
+bank-rel:secures
+    a            owl:ObjectProperty .
+
+bank:ResidentialProperty
+    bank-rel:secures bank:MortgageLoan .   # inverse triple written automatically
+```
+
+`WriterAgent._emit_relations()` tracks a `declared` set so each property pair `(predicate_uri, inverse_predicate_uri)` gets its `owl:ObjectProperty` + `owl:inverseOf` declaration exactly once, even if multiple terms share the same property.
+
+Proposed / confirmed / unresolved relations are stored in the publisher but **not** serialised to Turtle — they exist only for steward review in the UI.
+
+#### Business rules — skos:scopeNote
+
+```turtle
+    skos:scopeNote "IF the loan-to-value ratio exceeds 80% THEN..."@en ;
+    skos:scopeNote "IF a property appraisal decreases THEN..."@en ;
+```
+
+Each `BusinessRule.rule_text` from `EnrichedTerm.business_rules` becomes one `skos:scopeNote`. Rules are generated by `LLMDefinitionAgent` (IF/THEN form) or extracted from structured glossary input.
+
+#### Provenance — dct:source
+
+```turtle
+    dct:source <policy:mortgage_policy_v2.pdf> ;
+```
+
+One triple per `PolicyContext.document_ref`. If `section` is set, the URI includes `#section-{section}`.
+
+#### Editorial note
+
+```turtle
+    skos:editorialNote "Generated by OntoBridge pipeline"@en .
+```
+
+Always present — marks machine-generated terms for human review.
+
+#### URI derivation
+
+Term URI = `{bank_namespace}{CamelCaseLabel}`, e.g. `http://ontobridge.dev/ontology/bank/LoanToValueRatio`. If `TaxonomyPlacement.domain_prefix` contains a CURIE like `bank:LoanToValueRatio`, the suffix is used directly.
 
 ### Governance rules
 
@@ -160,3 +331,23 @@ A concept cannot be its own broader concept (`_rank_parents` skips exact-label m
 ### CSS design system
 
 The frontend uses a custom CSS design system in `frontend/src/index.css` (no Tailwind utility classes in JSX). Key variables: `--ink`, `--ice`, `--slate-d`, `--red`, `--amber`, `--green`, `--surface`. Layout is CSS grid: `grid-template-areas: "side top" "side main"`. Use existing classes (`.card`, `.card-h`, `.card-b`, `.pill`, `.btn`, `.badge`, `.scheme-pill`, `.lifecycle`, `.issues`) rather than inline styles where possible.
+
+### Frontend API client
+
+`frontend/src/api/client.js` — all requests have a 30 s default timeout; pipeline calls (`POST /pipeline/run`) use 600 000 ms (10 min) because LLM extraction on long documents can take many minutes. Timeout fires `AbortError` → shown as "Request timed out" in UI.
+
+### FIBO directory — path may vary
+
+The FIBO ontology files are **not** included in this repository. They must be cloned separately from [github.com/edmcouncil/fibo](https://github.com/edmcouncil/fibo). The auto-detection logic in `api/routers/pipeline.py` (`_find_fibo_dir()`) tries the following candidates in order:
+
+```
+{repo_root}/ontology/fibo        ← current default (symlink or clone here)
+{repo_root}/fibo-master/fibo-master
+{repo_root}/fibo-master
+{repo_root}/fibo
+{repo_root}/../fibo              ← clone next to the repo
+```
+
+If none of these exist the server starts without FIBO matching and prints `FIBO directory not found — running without FIBO matching.`
+
+**To add a new path:** edit the `candidates` list in `_find_fibo_dir()` in `src/ontobridge/api/routers/pipeline.py`. The directory must contain `.ttl` / `.rdf` / `.owl` files recursively — the loader walks the entire subtree.

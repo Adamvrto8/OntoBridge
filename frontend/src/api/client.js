@@ -1,13 +1,23 @@
 const BASE = '/api'
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, options)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || res.statusText)
+  const { timeout = 30000, ...fetchOptions } = options
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+  try {
+    const res = await fetch(`${BASE}${path}`, { ...fetchOptions, signal: controller.signal })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || res.statusText)
+    }
+    if (res.status === 204) return null
+    return res.json()
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Request timed out — server is still processing, try again in a moment')
+    throw e
+  } finally {
+    clearTimeout(timer)
   }
-  if (res.status === 204) return null
-  return res.json()
 }
 
 export const api = {
@@ -29,6 +39,12 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    updateRelation: (uri, body) =>
+      request(`/terms/${encodeURIComponent(uri)}/relations`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     exportCsv: (status) => {
       const q = status ? `?status=${status}` : ''
       window.open(`${BASE}/terms/export/csv${q}`)
@@ -36,7 +52,7 @@ export const api = {
   },
   pipeline: {
     run: (formData) =>
-      request('/pipeline/run', { method: 'POST', body: formData }),
+      request('/pipeline/run', { method: 'POST', body: formData, timeout: 600000 }),
   },
   audit: {
     list: (limit = 100) => request(`/audit?limit=${limit}`),
