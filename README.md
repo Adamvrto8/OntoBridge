@@ -371,6 +371,65 @@ pytest -k "fibo" -v                       # filter by name
 
 ---
 
+## MCP server
+
+OntoBridge exposes an MCP (Model Context Protocol) server so any MCP-compatible client can query and govern terms directly — Claude desktop, Claude Code, or any future system (Dawiso, etc.).
+
+### Install
+
+```bash
+pip install -e ".[mcp]"
+```
+
+### Run
+
+```bash
+# Point at your running OntoBridge instance
+$env:ONTOBRIDGE_URL = "http://localhost:8001"
+python mcp_server.py
+```
+
+### Connect from Claude desktop
+
+Add to `~/.claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "ontobridge": {
+      "command": "python",
+      "args": ["C:/SKOLA/DATA PROJEKT/ontobridge/mcp_server.py"],
+      "env": { "ONTOBRIDGE_URL": "http://localhost:8001" }
+    }
+  }
+}
+```
+
+### Connect from Claude Code
+
+Already configured in `.claude/settings.json` — works automatically when you open the `ontobridge/` folder in Claude Code with the server running.
+
+### Available tools
+
+| Tool | Description |
+|---|---|
+| `get_stats()` | Glossary overview — totals, status breakdown, definition coverage |
+| `search_glossary(query, status?)` | Find terms by label or definition text |
+| `get_term(uri)` | Full term detail — definition, taxonomy breadcrumb, relations, governance |
+| `list_inbox(severity?)` | Terms awaiting steward review |
+| `approve_term(uri, actor)` | Publish a term |
+| `transition_term(uri, new_status, actor?)` | Move to any lifecycle status |
+| `submit_text(text, doc_name?, use_llm?)` | Run the pipeline on a block of text |
+| `edit_definition(uri, definition, actor?)` | Rewrite a term definition |
+| `get_taxonomy_concepts(scheme?)` | List ontology concepts (useful for Dawiso mapping) |
+| `get_known_verbs()` | List valid semantic relation verbs |
+
+### GCP note
+
+Change `ONTOBRIDGE_URL` to the Cloud Run URL — no code changes needed.
+
+---
+
 ## Steward editing
 
 Every term detail page exposes inline editing for stewards:

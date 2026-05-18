@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ontobridge": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "env": {
+        "ONTOBRIDGE_URL": "http://localhost:8001"
+      }
+    }
+  }
+}
