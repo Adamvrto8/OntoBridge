@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Workflow
+
+Follow this sequence for every non-trivial task:
+
+1. **Explore** — read the relevant files before touching anything. Understand what exists.
+2. **Plan** — propose the approach and confirm with the user before writing code.
+3. **Code** — implement. One logical change per step. Run tests after each change.
+4. **Commit** — only when the user explicitly asks. Never push unless asked.
+
+For small tasks (typo fix, single-line change) skip straight to code.
+For anything touching the pipeline, agents, or API — always explore and plan first.
+
 ## Commands
 
 ### Backend
