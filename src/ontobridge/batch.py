@@ -8,7 +8,9 @@ from ontobridge.agents.definition.agent import LLMDefinitionAgent
 from ontobridge.agents.fibo.matcher import FiboMatcher
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.harvester.agent import HarvesterAgent
-from ontobridge.agents.policy_linker import PolicyLinkerAgent
+from ontobridge.agents.policy_linker import PolicyLinkerAgent, TFIDFPolicyLinker
+
+AnyPolicyLinker = PolicyLinkerAgent | TFIDFPolicyLinker
 from ontobridge.models.enrichment import CandidateLabel, EnrichedTerm
 from ontobridge.models.published import PublishedTerm
 from ontobridge.pipeline import PipelineRunner
@@ -107,7 +109,7 @@ class BatchPipelineRunner:
         config: PipelineConfig | None = None,
         harvester: HarvesterAgent | None = None,
         on_progress: ProgressCallback | None = None,
-        policy_linker: PolicyLinkerAgent | None = None,
+        policy_linker: AnyPolicyLinker | None = None,
         definition_agent: LLMDefinitionAgent | None = None,
         fibo_matcher: FiboMatcher | None = None,
     ) -> None:

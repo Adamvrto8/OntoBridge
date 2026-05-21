@@ -9,7 +9,7 @@ from ontobridge.agents.mapping.glossary import GlossarySource
 from ontobridge.agents.mapping.strategies import Encoder
 from ontobridge.agents.definition.agent import LLMDefinitionAgent
 from ontobridge.agents.fibo.matcher import FiboMatcher
-from ontobridge.agents.policy_linker import PolicyLinkerAgent
+from ontobridge.agents.policy_linker import PolicyLinkerAgent, TFIDFPolicyLinker
 from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
 from ontobridge.agents.writer import WriterAgent
@@ -53,7 +53,7 @@ class PipelineRunner:
         glossary: GlossarySource | None = None,
         encoder: Encoder | None = None,
         config: PipelineConfig | None = None,
-        policy_linker: PolicyLinkerAgent | None = None,
+        policy_linker: PolicyLinkerAgent | TFIDFPolicyLinker | None = None,
         definition_agent: LLMDefinitionAgent | None = None,
         fibo_matcher: FiboMatcher | None = None,
     ):

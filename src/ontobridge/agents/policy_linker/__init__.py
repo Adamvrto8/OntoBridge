@@ -4,10 +4,12 @@ from ontobridge.agents.policy_linker.store import (
     InMemoryVectorStore,
     PolicyMatch,
 )
+from ontobridge.agents.policy_linker.tfidf import TFIDFPolicyLinker
 
 __all__ = [
     "PolicyLinkerAgent",
     "ChromaVectorStore",
     "InMemoryVectorStore",
     "PolicyMatch",
+    "TFIDFPolicyLinker",
 ]

@@ -101,12 +101,20 @@ async def run_pipeline(
         tmp_path = Path(tmp.name)
 
     try:
+        from ontobridge.agents.policy_linker import TFIDFPolicyLinker
+        policy_linker = TFIDFPolicyLinker(threshold=0.15, top_k=3)
+        try:
+            policy_linker.index_document(tmp_path, document_ref=file.filename)
+        except Exception:
+            policy_linker = None  # indexing failed — proceed without linker
+
         runner = BatchPipelineRunner(
             ontology=ontology,
             publisher=publisher,
             harvester=harvester,
             definition_agent=definition_agent,
             fibo_matcher=fibo_matcher,
+            policy_linker=policy_linker,
         )
         result = runner.run_document(
             tmp_path,
