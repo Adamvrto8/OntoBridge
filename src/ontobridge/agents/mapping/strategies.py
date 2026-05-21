@@ -109,6 +109,55 @@ class TokenOverlapEncoder:
         return Counter(tokens)
 
 
+class TFIDFEncoder:
+    """TF-IDF encoder built from a corpus of ontology concept labels.
+
+    Weights tokens by how distinctive they are across the ontology corpus.
+    Common tokens like 'the', 'a', 'of' get low IDF; rare banking-specific
+    tokens like 'collateral', 'delinquency' get high IDF.
+
+    Unknown tokens (not seen in corpus) receive the maximum IDF weight —
+    they are assumed to be highly specific and distinctive.
+
+    Use ``TFIDFEncoder.from_ontology(ontology)`` to build from an OntologyIndex.
+    """
+
+    def __init__(self, corpus: list[str]) -> None:
+        N = len(corpus) or 1
+        df: Counter = Counter()
+        for doc in corpus:
+            tokens = set(_TOKEN_RE.findall(doc.casefold()))
+            df.update(tokens)
+        # Smoothed IDF: log((N+1)/(df+1)) + 1  (same formula as sklearn)
+        self._idf: dict[str, float] = {
+            token: math.log((N + 1) / (count + 1)) + 1.0
+            for token, count in df.items()
+        }
+        self._default_idf = math.log(N + 1) + 1.0  # unseen tokens
+
+    @classmethod
+    def from_ontology(cls, ontology) -> "TFIDFEncoder":
+        """Build a TFIDFEncoder from all concept labels, alt labels and definitions."""
+        docs: list[str] = []
+        for concept in ontology.concepts:
+            docs.append(concept.pref_label)
+            docs.extend(concept.alt_labels)
+            if concept.definition:
+                docs.append(concept.definition)
+        return cls(docs)
+
+    def encode(self, text: str) -> Mapping[str, float]:
+        tokens = _TOKEN_RE.findall(text.casefold())
+        if not tokens:
+            return {}
+        tf = Counter(tokens)
+        n = len(tokens)
+        return {
+            token: (count / n) * self._idf.get(token, self._default_idf)
+            for token, count in tf.items()
+        }
+
+
 def _cosine(a: Mapping[str, float], b: Mapping[str, float]) -> float:
     if not a or not b:
         return 0.0

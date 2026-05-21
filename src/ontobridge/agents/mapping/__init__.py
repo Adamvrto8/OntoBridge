@@ -15,6 +15,7 @@ from ontobridge.agents.mapping.strategies import (
     FuzzyStringStrategy,
     Match,
     MatchingStrategy,
+    TFIDFEncoder,
     TokenOverlapEncoder,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "FuzzyStringStrategy",
     "Match",
     "MatchingStrategy",
+    "TFIDFEncoder",
     "TokenOverlapEncoder",
 ]

@@ -186,3 +186,78 @@ def test_plain_sentence_without_trigger_returns_empty(extractor):
         text="The bank offers a variety of retail products to its customers."
     )
     assert extractor.extract(doc) == []
+
+
+# ---------------------------------------------------------------------------
+# New pattern coverage: acronyms, numbered lists, multi-line, lowercase
+# ---------------------------------------------------------------------------
+
+def test_term_with_parenthetical_acronym_means(extractor):
+    """'Term (ACR) means ...' — acronym stripped from label."""
+    doc = RawDocument(
+        text=(
+            "Anti-Money Laundering (AML) means the set of laws, regulations, "
+            "and procedures intended to prevent criminals from concealing illegally obtained funds."
+        )
+    )
+    results = extractor.extract(doc)
+    assert results
+    assert results[0].candidate_label == "Anti-Money Laundering"
+    assert "regulations" in results[0].definition
+
+
+def test_term_with_parenthetical_acronym_colon(extractor):
+    """'Term (ACR): Definition' — acronym stripped, definition captured."""
+    doc = RawDocument(
+        text=(
+            "Know Your Customer (KYC): A mandatory due-diligence process "
+            "that banks use to verify customer identity before onboarding."
+        )
+    )
+    results = extractor.extract(doc)
+    assert results
+    assert results[0].candidate_label == "Know Your Customer"
+    assert "identity" in results[0].definition
+
+
+def test_numbered_list_item_extracted(extractor):
+    """'1. Term means Definition' — numbered list items should be extracted."""
+    doc = RawDocument(
+        text=(
+            "1. Credit Risk means the probability of financial loss arising "
+            "from a borrower's failure to meet their repayment obligations."
+        )
+    )
+    results = extractor.extract(doc)
+    assert results
+    assert results[0].candidate_label == "Credit Risk"
+    assert "probability" in results[0].definition
+
+
+def test_multiline_definition_joined(extractor):
+    """'Term:\\n  Definition' — colon-newline entries should be joined and extracted."""
+    doc = RawDocument(
+        text=(
+            "KYC:\n"
+            "  The process of verifying customer identity before onboarding "
+            "to satisfy regulatory anti-money laundering requirements."
+        )
+    )
+    results = extractor.extract(doc)
+    assert results
+    assert results[0].candidate_label == "KYC"
+    assert "identity" in results[0].definition
+
+
+def test_lowercase_term_with_acronym(extractor):
+    """'lowercase term (ACR), which is ...' — lowercase form with acronym."""
+    doc = RawDocument(
+        text=(
+            "anti-money laundering (AML), which is a regulatory framework "
+            "designed to detect and prevent criminal financial activity in banking."
+        )
+    )
+    results = extractor.extract(doc)
+    assert results
+    assert results[0].candidate_label == "anti-money laundering"
+    assert "regulatory" in results[0].definition

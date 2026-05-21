@@ -10,23 +10,53 @@ from ontobridge.agents.harvester.protocols import ExtractedTerm, RawDocument
 # Each pattern must have exactly two named groups: (?P<term>...) and (?P<def>...)
 # They are tried in order; the first match on a paragraph wins.
 
+# Curly/smart quotes used in PDFs and Word docs (U+201C, U+201D, U+2019)
+_CQ = '[“”’]'
+
 _DEFINITION_PATTERNS: list[tuple[str, float]] = [
     # "Term" means / shall mean / is defined as / refers to DEFINITION.
     (
-        r'["“‘]?(?P<term>[A-Z][A-Za-z0-9 \-/]{1,60})["”’]?'
+        _CQ + r'?(?P<term>[A-Z][A-Za-z0-9 \-/]{1,60})' + _CQ + r'?'
         r'\s+(?:means|shall mean|is defined as|refers to|is understood as|denotes)\s+'
         r'(?P<def>[A-Za-z][^\n]{20,})',
         0.90,
+    ),
+    # Term (ACR) means/refers to DEFINITION — "Anti-Money Laundering (AML) means ..."
+    (
+        r'(?P<term>[A-Z][A-Za-z0-9 \-/]{1,50})\s*\([A-Z]{2,10}\)'
+        r'\s+(?:means|shall mean|is defined as|refers to|is understood as|denotes)\s+'
+        r'(?P<def>[A-Za-z][^\n]{20,})',
+        0.90,
+    ),
+    # Term (ACR): DEFINITION — "Anti-Money Laundering (AML): A regulatory framework ..."
+    (
+        r'(?P<term>[A-Z][A-Za-z0-9 \-/]{1,50})\s*\([A-Z]{2,10}\)\s*:\s+'
+        r'(?P<def>[A-Za-z][^\n]{20,})',
+        0.88,
     ),
     # TERM: DEFINITION  (glossary / catalog style)
     (
         r'^(?P<term>[A-Z][A-Za-z0-9 \-/]{1,60}):\s+(?P<def>[A-Z][^\n]{20,})',
         0.85,
     ),
-    # "TERM" – DEFINITION  (em-dash / en-dash separator)
+    # Numbered list: "1. Term means DEFINITION" or "1. Term: DEFINITION"
     (
-        r'["“‘](?P<term>[A-Z][A-Za-z0-9 \-/]{1,60})["”’]'
-        r'\s*[–—\-]\s*(?P<def>[A-Za-z][^\n]{20,})',
+        r'^\s*\d+[.)]\s+(?P<term>[A-Z][A-Za-z0-9 \-/]{1,60})'
+        r'(?:\s+(?:means|shall mean|refers to|is defined as|denotes|is understood as)\s+|\s*:\s+)'
+        r'(?P<def>[A-Za-z][^\n]{20,})',
+        0.85,
+    ),
+    # "TERM" - DEFINITION  (em-dash / en-dash separator)
+    (
+        _CQ + r'(?P<term>[A-Z][A-Za-z0-9 \-/]{1,60})' + _CQ
+        + r'\s*[–—\-]\s*(?P<def>[A-Za-z][^\n]{20,})',
+        0.80,
+    ),
+    # lowercase term (ACR), which is/means DEFINITION — "anti-money laundering (AML), which is ..."
+    (
+        r'(?P<term>[a-z][a-z0-9\-/ ]{3,50})\s*\([A-Z]{2,10}\)'
+        r'\s*[,.]?\s*(?:which\s+(?:is|are)|means|refers to|is defined as|is\s+(?:a|an|the))\s+'
+        r'(?P<def>[A-Za-z][^\n]{20,})',
         0.80,
     ),
     # TERM (acronym): DEFINITION — "KYC (Know Your Customer): ..."
@@ -100,14 +130,18 @@ class PatternTermExtractor:
 # ---------------------------------------------------------------------------
 
 def _split_sentences(text: str) -> list[str]:
-    """Split on sentence boundaries while keeping multi-line glossary entries intact."""
-    # Split on ". " followed by a capital letter, or on newlines
-    chunks = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+    """Split into matchable chunks, joining multi-line glossary entries."""
+    # Join colon-terminated lines with the next line: "AML:\n  The process..." -> "AML: The process..."
+    text = re.sub(r':\s*\n[ \t]*', ': ', text)
+    # Join indented continuation lines: "...failure to meet\n   obligations" -> "...failure to meet obligations"
+    text = re.sub(r'([a-z,])\s*\n[ \t]+', r'\1 ', text)
+    # Split on sentence boundaries or remaining newlines
+    chunks = re.split(r'(?<=[.!?])\s+(?=[A-Z])|\n+', text)
     return [c.strip() for c in chunks if c.strip()]
 
 
 def _clean_label(raw: str) -> str:
-    label = raw.strip().strip('""“”‘’')
+    label = raw.strip().strip('“”’"\'')
     # Collapse internal whitespace
     label = re.sub(r'\s+', ' ', label)
     return label.strip()

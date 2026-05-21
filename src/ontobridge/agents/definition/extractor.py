@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import re
 
-# Verbs that introduce a formal definition ("X is a ...", "X refers to ...")
+# Verbs that introduce a formal definition ("X is a ...", "X refers to ...", "X, which is ...")
 _DEF_VERB = re.compile(
     r"\b(is\s+an?\b|are\s+an?\b|refers?\s+to\b|means?\b|is\s+defined\s+as\b"
-    r"|represents?\b|denotes?\b|describes?\b|encompasses?\b)",
+    r"|represents?\b|denotes?\b|describes?\b|encompasses?\b"
+    r"|which\s+is\b|which\s+are\b|is\s+the\b|are\s+the\b)",
     re.IGNORECASE,
 )
 
@@ -27,19 +28,29 @@ _IDEAL_MAX = 35
 
 
 def _split_sentences(text: str) -> list[str]:
+    # Strip table row markers (pipe-delimited tables)
+    text = re.sub(r'^\s*\||\|\s*$', '', text, flags=re.MULTILINE)
+
     parts = _SENT_SPLIT.split(text.strip())
-    # Also split on ": " used heavily in policy docs ("Mortgage: A loan...")
     sentences: list[str] = []
     for part in parts:
-        m = re.match(r"^([^:]{1,50}):\s+(.+)$", part, re.DOTALL)
-        if m and len(m.group(1).split()) <= 5:
-            head, body = m.group(1).strip(), m.group(2).strip()
-            if head:
-                sentences.append(head)
-            if body:
-                sentences.append(body)
-        else:
-            sentences.append(part)
+        # Also split on newlines (numbered lists, multi-line paragraphs)
+        for line in part.split('\n'):
+            line = line.strip()
+            # Strip numbered/lettered list prefixes: "1. ", "a) ", "(a) "
+            line = re.sub(r'^(?:\d+[.)]\s+|\([a-z]\)\s+|[a-z][.)]\s+)', '', line)
+            if not line:
+                continue
+            # Also split on ": " used heavily in policy docs ("Mortgage: A loan...")
+            m = re.match(r"^([^:]{1,50}):\s+(.+)$", line, re.DOTALL)
+            if m and len(m.group(1).split()) <= 5:
+                head, body = m.group(1).strip(), m.group(2).strip()
+                if head:
+                    sentences.append(head)
+                if body:
+                    sentences.append(body)
+            else:
+                sentences.append(line)
     return [s.strip() for s in sentences if s.strip()]
 
 

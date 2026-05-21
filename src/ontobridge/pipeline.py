@@ -65,6 +65,13 @@ class PipelineRunner:
         self.policy_linker = policy_linker
         self.definition_agent = definition_agent
         self.fibo_matcher = fibo_matcher
+
+        # Use TF-IDF encoder when none is explicitly provided.
+        # Built from the ontology corpus so common tokens (the, of, a) get
+        # low weight and specific banking terms get high weight.
+        from ontobridge.agents.mapping.strategies import TFIDFEncoder
+        _encoder = cfg.encoder if cfg.encoder is not None else TFIDFEncoder.from_ontology(ontology)
+
         self.glossary: GlossarySource = (
             glossary if glossary is not None else from_ontology(ontology)
         )
@@ -72,11 +79,11 @@ class PipelineRunner:
             self.glossary,
             fuzzy_threshold=cfg.fuzzy_threshold,
             embedding_threshold=cfg.embedding_threshold,
-            encoder=cfg.encoder,
+            encoder=_encoder,
         )
         self.taxonomy = TaxonomyAgent(
             ontology,
-            encoder=cfg.encoder,
+            encoder=_encoder,
             placement_threshold=cfg.placement_threshold,
             sibling_conflict_threshold=cfg.sibling_conflict_threshold,
         )

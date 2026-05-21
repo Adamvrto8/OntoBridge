@@ -137,6 +137,38 @@ def test_agent_uses_label_from_caller():
 # Integration with HarvesterAgent
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# New pattern coverage: which-is, numbered lists, table rows
+# ---------------------------------------------------------------------------
+
+def test_which_is_recognised_as_definition_trigger():
+    """'which is' should be treated as a definition verb and boost the score."""
+    text = (
+        "A loan is a financial arrangement for personal banking use. "
+        "Anti-Money Laundering (AML), which is the process of detecting and "
+        "reporting suspicious financial transactions in banking."
+    )
+    result = _EXT.extract(text, label="AML")
+    assert result is not None
+    assert "detecting" in result
+
+
+def test_numbered_list_prefix_stripped():
+    """'1. Term: Definition' — numbered prefix should not block colon extraction."""
+    text = "1. Credit Risk: The probability of financial loss arising from a borrower's failure to repay."
+    result = _EXT.extract(text, label="Credit Risk")
+    assert result is not None
+    assert "probability" in result
+
+
+def test_table_row_markers_stripped():
+    """Pipe markers from markdown/ASCII tables should not corrupt extraction."""
+    text = "| AML | Anti-Money Laundering | The process of detecting and preventing illegal financial activity in banking. |"
+    result = _EXT.extract(text, label="AML")
+    assert result is not None
+    assert "AML" in result or "detecting" in result
+
+
 def test_harvester_uses_definition_agent(tmp_path):
     from ontobridge.agents.harvester.agent import HarvesterAgent
 
