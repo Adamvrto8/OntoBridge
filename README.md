@@ -9,24 +9,17 @@ Two interfaces are available:
 
 ---
 
-## Requirements
+## System requirements
 
-- Python 3.10 or newer
-- Node.js 18 or newer (for the React frontend)
-- Git
-
-Optional (for local LLM extraction):
-- [Ollama](https://ollama.com/) running locally
-
-Optional (for Claude-powered extraction):
-- Anthropic API key from [console.anthropic.com](https://console.anthropic.com)
-
-Optional (for FIBO ontology matching):
-- FIBO repository cloned anywhere on disk — auto-detected at `../fibo`, `./fibo`, `./fibo-master`
+| Tool | Minimum | Notes |
+|---|---|---|
+| Python | 3.10+ | 3.12+ recommended |
+| Node.js | 18+ | For the React frontend |
+| Git | any | |
 
 ---
 
-## Quick start
+## Quick start (minimal — run the app)
 
 ### 1. Clone the repository
 
@@ -55,50 +48,85 @@ source .venv/bin/activate
 pip install -e ".[api,readers,llm]"
 ```
 
-| Extra | What it adds |
-|---|---|
-| `api` | FastAPI + Uvicorn REST backend |
-| `dashboard` | Streamlit UI (optional, for internal tooling) |
-| `readers` | PDF and Word (.docx) document support |
-| `llm` | Ollama-backed LLM extraction |
-
-For Anthropic API support:
+For Claude API support (needed for LLM extraction with Anthropic models):
 ```bash
-pip install anthropic
+pip install -e ".[api,readers,llm,claude]"
 ```
 
-For FIBO ontology matching:
+### 4. Build and start the React frontend
+
 ```bash
-pip install rdflib
+cd frontend
+npm install
+npm run build   # build once; use 'npm run dev' for hot-reload during development
+cd ..
 ```
 
-### 4. Start the FastAPI backend
+### 5. Start the FastAPI backend
 
 **Demo mode** (in-memory, resets on restart):
-```bash
-uvicorn api_server:app --reload
+```powershell
+python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
 ```
 
 **Persistent mode** (SQLite, survives restarts):
 ```powershell
 $env:DB_PATH = "ontobridge.db"
-uvicorn api_server:app --reload
+python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
 ```
 
-API runs at **http://localhost:8001** · Interactive docs at **http://localhost:8001/docs**
+> **Do not use `--reload`** — FIBO ontology indexing takes 1–3 minutes at startup; `--reload` would re-index on every code change.
 
-> If port 8001 is already in use, pass a different port: `.\start_server.ps1 -Port 8002`
+Open **http://localhost:8001** in your browser.  
+Interactive API docs: **http://localhost:8001/docs**
 
-### 5. Start the React frontend
+---
 
-In a second terminal:
+## Full developer install (matches the reference environment — 598 tests)
+
+This is what gives you the same setup as the person who set up the project, including all optional NLP packages needed for the full test suite.
+
 ```bash
-cd frontend
-npm install
-npm run dev
+# 1. Clone and enter the project
+git clone https://github.com/Adamvrto8/OntoBridge.git
+cd OntoBridge/ontobridge
+
+# 2. Create virtual environment
+python -m venv .venv
+.venv\Scripts\Activate.ps1        # Windows PowerShell
+# source .venv/bin/activate       # macOS / Linux
+
+# 3. Install all Python extras
+pip install -e ".[api,readers,llm,claude,dev,embeddings,nlp,mcp]"
+
+# 4. Download the spaCy language model (required for NLP tests and extraction)
+python -m spacy download en_core_web_sm
+
+# 5. Install Node.js frontend dependencies
+cd frontend && npm install && cd ..
+
+# 6. Verify: full test suite should show 598 collected
+pytest --collect-only -q
 ```
 
-Open your browser at **http://localhost:5173**
+Expected output: `598 tests collected` (40 of those require sentence-transformers + spaCy and are skipped automatically when those packages are not installed).
+
+---
+
+## What each Python extra provides
+
+| Extra | Install command | What it adds |
+|---|---|---|
+| `api` | included in quick start | FastAPI + Uvicorn REST backend |
+| `readers` | included in quick start | PDF and Word (.docx) document support |
+| `llm` | included in quick start | Ollama-backed LLM extraction |
+| `claude` | `pip install -e ".[claude]"` | Anthropic Claude API support |
+| `dev` | full dev install | pytest + sentence-transformers + spaCy |
+| `embeddings` | full dev install | `SentenceTransformerEncoder` for dense similarity |
+| `nlp` | full dev install | spaCy-based term/SVO extraction |
+| `mcp` | full dev install | MCP server (`mcp_server.py`) |
+| `vector` | optional | ChromaDB policy linker (replaced by TF-IDF linker by default) |
+| `dashboard` | optional | Streamlit UI (`streamlit run streamlit_app.py`) |
 
 ---
 
@@ -106,19 +134,18 @@ Open your browser at **http://localhost:5173**
 
 Run one instance that the whole team can access over the local network.
 
-### Host machine (one-time setup)
+### Host machine
 
 ```powershell
-# Install dependencies
-pip install -e ".[api,readers,llm]"
-pip install anthropic rdflib
+# Full install (if not already done)
+pip install -e ".[api,readers,llm,claude]"
 cd frontend && npm install && cd ..
 
-# Start shared server (builds frontend, starts on 0.0.0.0:8001)
+# Start — builds frontend, binds 0.0.0.0, prints LAN IP
 .\start_server.ps1 -Port 8001
 ```
 
-The script prints the LAN IP — share it with the team:
+The script prints your LAN address:
 
 ```
 ========================================
@@ -132,13 +159,13 @@ The script prints the LAN IP — share it with the team:
 
 Data is stored in `ontobridge.db` (SQLite) and survives restarts.
 
+> **Note:** `ontobridge.db` is listed in `.gitignore` — it is never committed. Each fresh clone starts with an empty database. This is intentional; the production database lives on the host machine only.
+
 ### Connecting (team members)
 
-Just open **`http://<host-ip>:8000`** in a browser — no install needed.
+Open **`http://<host-ip>:8001`** in a browser — no install needed on the client side.
 
 ### Running a local dev frontend against the shared API
-
-If you want hot-reload while developing (optional):
 
 ```powershell
 # In frontend/
@@ -146,49 +173,68 @@ $env:VITE_BACKEND_URL = "http://192.168.1.42:8001"
 npm run dev
 ```
 
-### Options
+### start_server.ps1 options
 
 | Flag | Effect |
 |---|---|
-| `.\start_server.ps1` | Persistent SQLite + builds frontend |
-| `.\start_server.ps1 -NoBuild` | Skip `npm build` (already built) |
-| `.\start_server.ps1 -Demo` | In-memory mode (resets on restart) |
-| `.\start_server.ps1 -Port 8080` | Use a different port |
+| `.\start_server.ps1 -Port 8001` | Persistent SQLite + builds frontend |
+| `.\start_server.ps1 -Port 8001 -NoBuild` | Skip `npm build` (already built) |
+| `.\start_server.ps1 -Port 8001 -Demo` | In-memory mode (resets on restart) |
 
 ---
 
-### Running the Streamlit dashboard (optional)
+## FIBO ontology integration
 
-The original Streamlit dashboard is still available for internal use:
+OntoBridge optionally integrates with [FIBO](https://spec.edmcouncil.org/fibo/) (Financial Industry Business Ontology).
+
+> **FIBO is not included in this repository** — it is listed in `.gitignore` and must be cloned separately. The server starts and works fully without it; FIBO only adds richer taxonomy placement, alt labels, and definition quality checks.
+
+### Setup
 
 ```bash
-streamlit run streamlit_app.py
+# Clone next to the ontobridge folder (recommended path)
+git clone https://github.com/edmcouncil/fibo.git ../fibo
 ```
 
-Open at **http://localhost:8501**
+OntoBridge auto-detects FIBO at these paths (checked in order):
+
+```
+ontology/fibo/           ← symlink or clone here
+../fibo/                 ← sibling of the ontobridge folder (recommended)
+./fibo/
+./fibo-master/
+./fibo-master/fibo-master/
+```
+
+No configuration needed. The index loads at server startup (~1–3 minutes, 299 `.ttl` files) and prints `FIBO index ready.` when done.
+
+### What FIBO adds
+
+| Feature | Description |
+|---|---|
+| **skos:closeMatch** | Semantic link to the official FIBO URI on each matched term |
+| **Alt labels** | FIBO synonyms and abbreviations (e.g. "AML", "BIC") injected as alt labels |
+| **Taxonomy placement** | FIBO's `rdfs:subClassOf` hierarchy (2884 parent relationships) used for placement |
+| **Definition quality check** | Governance Rule 12 compares extracted definition against FIBO's authoritative definition |
 
 ---
 
-## Using the LLM extractors
+## LLM extraction
 
-The Run Pipeline page exposes two LLM toggles:
+The Run Pipeline page exposes two LLM toggles: **Use LLM extractor** (better NER) and **Improve definitions** (LLM rewrites + IF/THEN business rules).
 
-- **Use LLM extractor** — replaces the pattern-based NER with a Claude or Ollama model for higher-quality term extraction
-- **Improve definitions** — sends each extracted term through the LLM to rewrite its definition and generate IF/THEN business rules
+### Option A — Anthropic Claude
 
-### Option A — Anthropic API (Claude)
+```bash
+pip install -e ".[claude]"
+```
 
-In the Run Pipeline page: enable an LLM toggle, select **Anthropic API**, choose a model, and optionally paste your API key directly into the key field. If left blank, the `ANTHROPIC_API_KEY` environment variable is used.
-
-To set the key as an environment variable:
+Set your API key:
 
 **Windows (PowerShell):**
 ```powershell
 $env:ANTHROPIC_API_KEY = "sk-ant-api03-..."
-```
-
-To save permanently:
-```powershell
+# To save permanently:
 [System.Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "sk-ant-...", "User")
 ```
 
@@ -197,6 +243,8 @@ To save permanently:
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
 ```
 
+In Run Pipeline: enable an LLM toggle → select **Anthropic API** → choose model → leave key blank to use the env var.
+
 Available models (fastest → best quality):
 - `claude-haiku-4-5-20251001`
 - `claude-sonnet-4-6`
@@ -204,45 +252,96 @@ Available models (fastest → best quality):
 
 ### Option B — Ollama (local, no API key needed)
 
-1. Install Ollama from [ollama.com](https://ollama.com/)
+1. Install [Ollama](https://ollama.com/)
 2. Pull a model:
    ```bash
    ollama pull llama3.2:1b    # small, fast
    ollama pull gemma4:26b     # larger, better results
    ```
-3. In Run Pipeline: enable an LLM toggle, select **Ollama (local)**, enter the model name
+3. In Run Pipeline: enable an LLM toggle → select **Ollama (local)** → enter model name
 
 ---
 
-## FIBO ontology integration
+## Running tests
 
-OntoBridge optionally integrates with the [FIBO](https://spec.edmcouncil.org/fibo/) (Financial Industry Business Ontology) — a standardized ontology covering financial instruments, institutions, and concepts.
-
-### Setup
-
-Clone the FIBO repository anywhere on disk:
 ```bash
-git clone https://github.com/edmcouncil/fibo.git
+# Minimal install (558 tests collected — NLP packages not installed)
+pytest
+
+# Full dev install (598 tests collected — includes spaCy + sentence-transformers tests)
+pytest
+
+# Single file
+pytest tests/test_relations_agent.py -v
+
+# Filter by name
+pytest -k "fibo" -v
 ```
 
-OntoBridge auto-detects it at these locations (checked in order):
-- `../fibo` (sibling of the ontobridge folder — recommended)
-- `./fibo`
-- `./fibo-master`
-- `./fibo-master/fibo-master`
+### Test count explained
 
-No configuration needed. The index loads on the first pipeline run (~30–60 seconds for 299 files) and is cached in memory for all subsequent runs.
+| Condition | Tests collected | Skipped |
+|---|---|---|
+| Base install `.[api,readers,llm]` | 558 | 3 (chromadb, spaCy, sentence-transformers) |
+| Full dev install `.[dev,embeddings,nlp]` + spaCy model | 598 | 1 (chromadb) |
 
-### What FIBO adds to each term
+The 40 extra tests (`test_spacy_extractors.py`, `test_sentence_transformer_encoder.py`) use `pytest.importorskip` — they are silently skipped when those packages are absent, so `pytest` still reports 100% pass rate either way.
 
-| Feature | Description |
+---
+
+## MCP server
+
+OntoBridge exposes an MCP (Model Context Protocol) server so any MCP-compatible client (Claude desktop, Claude Code, Dawiso, etc.) can query and govern terms directly.
+
+### Install
+
+```bash
+pip install -e ".[mcp]"
+```
+
+### Run
+
+```bash
+$env:ONTOBRIDGE_URL = "http://localhost:8001"   # or your shared server IP
+python mcp_server.py
+```
+
+### Connect from Claude desktop
+
+Add to `~/.claude/claude_desktop_config.json` (adjust path to match your machine):
+
+```json
+{
+  "mcpServers": {
+    "ontobridge": {
+      "command": "python",
+      "args": ["C:/path/to/ontobridge/mcp_server.py"],
+      "env": { "ONTOBRIDGE_URL": "http://localhost:8001" }
+    }
+  }
+}
+```
+
+### Connect from Claude Code
+
+Already configured in `.claude/settings.json` — works automatically when the `ontobridge/` folder is open in Claude Code with the server running.
+
+### Available tools
+
+| Tool | Description |
 |---|---|
-| **skos:closeMatch relation** | If a term matches a FIBO concept, a semantic relation linking to the official FIBO URI is added to the term detail |
-| **Alt labels** | FIBO synonyms and abbreviations (e.g. "financial institution", "BIC", "AML") are injected as alt labels and appear under "Also known as" |
-| **Taxonomy placement** | FIBO's `rdfs:subClassOf` hierarchy (2884 parent relationships) is used to place matched terms under their authoritative broader concept at confidence 0.95 |
-| **Definition quality check** | Governance Rule 12 compares the extracted definition against FIBO's authoritative `skos:definition` and warns when they diverge significantly |
+| `get_stats()` | Glossary overview — totals, status breakdown, definition coverage |
+| `search_glossary(query, status?)` | Find terms by label or definition text |
+| `get_term(uri)` | Full term detail — definition, taxonomy breadcrumb, relations, governance |
+| `list_inbox(severity?)` | Terms awaiting steward review |
+| `approve_term(uri, actor)` | Publish a term |
+| `transition_term(uri, new_status, actor?)` | Move to any lifecycle status |
+| `submit_text(text, doc_name?, use_llm?)` | Run the pipeline on a block of text |
+| `edit_definition(uri, definition, actor?)` | Rewrite a term definition |
+| `get_taxonomy_concepts(scheme?)` | List ontology concepts |
+| `get_known_verbs()` | List valid semantic relation verbs |
 
-Matching works on preferred labels, SKOS alt labels, `cmns-av:synonym` (418 entries), and `cmns-av:abbreviation` (810 entries). Terms like "AML", "BIC", or "financial institution" will match even if the document uses the abbreviated form.
+> **GCP note:** Change `ONTOBRIDGE_URL` to the Cloud Run URL — no code changes needed.
 
 ---
 
@@ -265,8 +364,8 @@ FiboMatcher           matches against FIBO labels/synonyms/abbreviations
 MappingAgent          checks for duplicates against existing glossary
    |
    v
-TaxonomyAgent         FIBO hierarchy placement (falls back to ontology
-   |                  similarity when no FIBO match found)
+TaxonomyAgent         FIBO hierarchy placement (falls back to TF-IDF
+   |                  ontology similarity when no FIBO match found)
    v
 DefinitionAgent       heuristic sentence scoring + optional LLM rewrite
    |                  (LLM also generates IF/THEN business rules)
@@ -275,7 +374,7 @@ RelationsAgent        SVO regex extraction from definition text
    |                  + FIBO skos:closeMatch injection
    v
 Object resolution     links relation object phrases to published term URIs
-   |                  (enables cross-term edges in knowledge graph)
+   |
    v
 GovernanceAgent       evaluates 14 rules → recommended action + confidence
    |
@@ -286,8 +385,6 @@ TermPublisher         persists to in-memory store or SQLite
 ---
 
 ## Governance rules
-
-The governance engine evaluates 14 rules across three categories:
 
 | Rule | Category | Severity | Description |
 |---|---|---|---|
@@ -308,6 +405,21 @@ The governance engine evaluates 14 rules across three categories:
 
 ---
 
+## Steward editing
+
+Every term detail page exposes inline editing:
+
+| Section | What you can do |
+|---|---|
+| **Definition** | Click Edit → textarea → Save |
+| **Also known as** | Add alt labels (type + Enter), remove with × |
+| **Taxonomy** | Override → searchable list of 103 ontology concepts → pick broader concept |
+| **Semantic relations** | Edit → × remove, add new (verb autocomplete + object label) |
+
+All edits are recorded in the Audit Log with steward name and timestamp.
+
+---
+
 ## Project structure
 
 ```
@@ -321,10 +433,9 @@ ontobridge/
 │   │   ├── taxonomy/        # SKOS taxonomy placement
 │   │   ├── relations/       # SVO semantic relation extraction
 │   │   ├── governance/      # 14 lifecycle rules (DRAFT → REVIEW → PUBLISHED)
-│   │   ├── policy_linker/   # Vector similarity to existing policies
-│   │   └── mapping/         # Ontology mapping strategies
+│   │   ├── policy_linker/   # TF-IDF and vector similarity to policies
+│   │   └── mapping/         # Ontology mapping strategies (TF-IDF encoder)
 │   ├── audit/               # Audit log (in-memory and SQLite)
-│   ├── dashboard/           # Streamlit UI pages
 │   ├── publisher/           # Term storage (in-memory and SQLite)
 │   ├── models/              # Data models (EnrichedTerm, FIBOMatch, ...)
 │   ├── batch.py             # BatchPipelineRunner
@@ -334,13 +445,23 @@ ontobridge/
 │       ├── pages/           # Inbox, Glossary, TermDetail, Pipeline, ...
 │       └── components/      # Sidebar, TopBar, shared components
 ├── ontology/
-│   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (Turtle)
-├── examples/
-│   ├── demo.py              # End-to-end demo script
-│   └── sample_policy.txt    # Sample banking policy document
-├── tests/                   # 574 tests, pytest
-└── streamlit_app.py         # Streamlit dashboard entry point
+│   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (103 concepts, 10 schemes)
+├── tests/                   # 598 tests (558 without optional NLP packages)
+├── mcp_server.py            # MCP server (fastmcp, STDIO/SSE)
+├── api_server.py            # FastAPI entry point
+├── start_server.ps1         # Shared team server launcher
+└── streamlit_app.py         # Streamlit dashboard (optional)
 ```
+
+### What is NOT in the repository (gitignored)
+
+| Path | Why |
+|---|---|
+| `ontology/fibo/`, `../fibo/` | FIBO is 299 TTL files, cloned separately (see FIBO section above) |
+| `ontobridge.db`, `*.db` | SQLite publisher database — local state, not shared via git |
+| `frontend/dist/` | Built frontend output — run `npm run build` after clone |
+| `frontend/node_modules/` | Node.js packages — run `npm install` after clone |
+| `.venv/` | Python virtual environment — recreate with `python -m venv .venv` |
 
 ---
 
@@ -348,97 +469,10 @@ ontobridge/
 
 | Page | Description |
 |---|---|
-| **Governance Inbox** | Review terms with severity, confidence, age, and governance issue details |
-| **Run Pipeline** | Upload a document, configure LLM options and API key, run extraction |
-| **Term Detail** | Full term record — steward-editable definition, alt labels, taxonomy override, semantic relations (add/remove), lifecycle transitions, ancestor breadcrumb path |
-| **Glossary** | Browse all published terms, filter by scheme/approver/version, export CSV |
+| **Governance Inbox** | Review terms with severity, confidence, age, governance issues |
+| **Run Pipeline** | Upload document, configure LLM, run extraction |
+| **Term Detail** | Definition, alt labels, taxonomy override, semantic relations, lifecycle transitions |
+| **Glossary** | Browse published terms, filter by scheme/approver/version, export CSV |
 | **Pipeline Stats** | Extraction and governance metrics by scheme |
-| **Knowledge Graph** | Live force-directed graph of terms and their resolved semantic relations — click any node to open its term detail |
+| **Knowledge Graph** | Force-directed graph of terms and resolved semantic relations |
 | **Audit Log** | Full history of all governance actions |
-| **Miro Board** | Embedded Miro board for collaborative whiteboarding |
-
----
-
-## Running tests
-
-```bash
-pytest                                    # full suite
-pytest tests/test_relations_agent.py -v  # single file
-pytest -k "fibo" -v                       # filter by name
-```
-
-574 tests, 1 skipped (chromadb optional dependency).
-
----
-
-## MCP server
-
-OntoBridge exposes an MCP (Model Context Protocol) server so any MCP-compatible client can query and govern terms directly — Claude desktop, Claude Code, or any future system (Dawiso, etc.).
-
-### Install
-
-```bash
-pip install -e ".[mcp]"
-```
-
-### Run
-
-```bash
-# Point at your running OntoBridge instance
-$env:ONTOBRIDGE_URL = "http://localhost:8001"
-python mcp_server.py
-```
-
-### Connect from Claude desktop
-
-Add to `~/.claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "ontobridge": {
-      "command": "python",
-      "args": ["C:/SKOLA/DATA PROJEKT/ontobridge/mcp_server.py"],
-      "env": { "ONTOBRIDGE_URL": "http://localhost:8001" }
-    }
-  }
-}
-```
-
-### Connect from Claude Code
-
-Already configured in `.claude/settings.json` — works automatically when you open the `ontobridge/` folder in Claude Code with the server running.
-
-### Available tools
-
-| Tool | Description |
-|---|---|
-| `get_stats()` | Glossary overview — totals, status breakdown, definition coverage |
-| `search_glossary(query, status?)` | Find terms by label or definition text |
-| `get_term(uri)` | Full term detail — definition, taxonomy breadcrumb, relations, governance |
-| `list_inbox(severity?)` | Terms awaiting steward review |
-| `approve_term(uri, actor)` | Publish a term |
-| `transition_term(uri, new_status, actor?)` | Move to any lifecycle status |
-| `submit_text(text, doc_name?, use_llm?)` | Run the pipeline on a block of text |
-| `edit_definition(uri, definition, actor?)` | Rewrite a term definition |
-| `get_taxonomy_concepts(scheme?)` | List ontology concepts (useful for Dawiso mapping) |
-| `get_known_verbs()` | List valid semantic relation verbs |
-
-### GCP note
-
-Change `ONTOBRIDGE_URL` to the Cloud Run URL — no code changes needed.
-
----
-
-## Steward editing
-
-Every term detail page exposes inline editing for stewards:
-
-| Section | What you can do |
-|---|---|
-| **Definition** | Click Edit → textarea → Save to rewrite the definition |
-| **Also known as** | Add new alt labels (type + Enter), remove existing ones with × |
-| **Taxonomy** | Click Override → searchable list of all 103 ontology concepts → pick a new broader concept and scheme |
-| **Semantic relations** | Click Edit → × to remove relations, add new ones (verb autocomplete + object label) |
-
-All edits are recorded in the Audit Log with the steward's name and timestamp. The term version number increments on every save.

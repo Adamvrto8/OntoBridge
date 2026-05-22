@@ -1,17 +1,14 @@
-"""FastAPI entry point. Run with:
+"""FastAPI entry point.
 
-    uvicorn api_server:app --reload
+Do NOT use --reload — FIBO indexing takes 1-3 min at startup and would
+re-run on every code change.
 
-Storage modes
--------------
-Demo (default) — in-memory, resets on restart:
+Demo mode (in-memory, resets on restart):
+    python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
 
-    uvicorn api_server:app --reload
-
-Persistent — SQLite, survives restarts:
-
-    DB_PATH=ontobridge.db uvicorn api_server:app --reload   # Linux/Mac
-    $env:DB_PATH="ontobridge.db"; uvicorn api_server:app --reload  # PowerShell
+Persistent mode (SQLite, survives restarts):
+    $env:DB_PATH="ontobridge.db"; python -m uvicorn api_server:app --host 0.0.0.0 --port 8001  # PowerShell
+    DB_PATH=ontobridge.db python -m uvicorn api_server:app --host 0.0.0.0 --port 8001           # Linux/Mac
 """
 from __future__ import annotations
 
