@@ -3,9 +3,7 @@
 Multi-agent semantic term governance system for retail banking.  
 Extracts business terms from documents, maps them onto a SKOS/OWL ontology, enriches them with FIBO (Financial Industry Business Ontology), and routes them through a human-in-the-loop governance workflow.
 
-Two interfaces are available:
-- **React web app** — production UI (FastAPI backend + Vite/React frontend)
-- **Streamlit dashboard** — quick prototyping and internal tooling
+The primary interface is the **React web app** — FastAPI backend + Vite/React frontend. A REST API is exposed for integration with external data platforms (Dawiso, Collibra, etc.).
 
 ---
 
@@ -58,8 +56,7 @@ pip install -e ".[api,readers,llm,claude]"
 ```bash
 cd frontend
 npm install
-npm run build   # build once; use 'npm run dev' for hot-reload during development
-cd ..
+npm run dev   # build once; use 'npm run dev' for hot-reload during development
 ```
 
 ### 5. Start the FastAPI backend
@@ -82,7 +79,7 @@ Interactive API docs: **http://localhost:8001/docs**
 
 ---
 
-## Full developer install (matches the reference environment — 598 tests)
+## Full developer install (matches the reference environment — 616 tests)
 
 This is what gives you the same setup as the person who set up the project, including all optional NLP packages needed for the full test suite.
 
@@ -105,11 +102,11 @@ python -m spacy download en_core_web_sm
 # 5. Install Node.js frontend dependencies
 cd frontend && npm install && cd ..
 
-# 6. Verify: full test suite should show 598 collected
+# 6. Verify: full test suite should show 616 collected
 pytest --collect-only -q
 ```
 
-Expected output: `598 tests collected` (40 of those require sentence-transformers + spaCy and are skipped automatically when those packages are not installed).
+Expected output: `616 tests collected` (40 of those require sentence-transformers + spaCy and are skipped automatically when those packages are not installed).
 
 ---
 
@@ -126,7 +123,6 @@ Expected output: `598 tests collected` (40 of those require sentence-transformer
 | `nlp` | full dev install | spaCy-based term/SVO extraction |
 | `mcp` | full dev install | MCP server (`mcp_server.py`) |
 | `vector` | optional | ChromaDB policy linker (replaced by TF-IDF linker by default) |
-| `dashboard` | optional | Streamlit UI (`streamlit run streamlit_app.py`) |
 
 ---
 
@@ -282,10 +278,77 @@ pytest -k "fibo" -v
 
 | Condition | Tests collected | Skipped |
 |---|---|---|
-| Base install `.[api,readers,llm]` | 558 | 3 (chromadb, spaCy, sentence-transformers) |
-| Full dev install `.[dev,embeddings,nlp]` + spaCy model | 598 | 1 (chromadb) |
+| Base install `.[api,readers,llm]` | 576 | 3 (chromadb, spaCy, sentence-transformers) |
+| Full dev install `.[dev,embeddings,nlp]` + spaCy model | 616 | 1 (chromadb) |
 
 The 40 extra tests (`test_spacy_extractors.py`, `test_sentence_transformer_encoder.py`) use `pytest.importorskip` — they are silently skipped when those packages are absent, so `pytest` still reports 100% pass rate either way.
+
+---
+
+## Platform integration (Dawiso, Collibra, etc.)
+
+OntoBridge exposes a REST API designed for ingestion into external data catalogs.
+
+### Authentication
+
+Set `ONTOBRIDGE_API_KEY` on the server to require an API key on all `/api/*` routes. When the env var is not set, auth is disabled (local dev).
+
+```powershell
+$env:ONTOBRIDGE_API_KEY = "your-secret-key"   # server side
+# External system sends: X-API-Key: your-secret-key
+```
+
+### SKOS / TTL export
+
+Pull the full published glossary as a single SKOS/OWL Turtle file:
+
+```
+GET /api/terms/export/turtle                  # published terms only (default)
+GET /api/terms/export/turtle?status=all       # all terms regardless of status
+GET /api/terms/export/turtle?status=published,review
+```
+
+The file is a valid RDF graph with `skos:Concept`, `skos:prefLabel`, `skos:definition`, `skos:broader`, and `skos:exactMatch` (FIBO URI) triples — importable directly into any SKOS-aware catalog.
+
+### Webhook (push on term approval)
+
+When `ONTOBRIDGE_WEBHOOK_URL` is set, a `POST` is fired to that URL every time a term's lifecycle status changes:
+
+```powershell
+$env:ONTOBRIDGE_WEBHOOK_URL = "https://catalog.company.com/hooks/ontobridge"
+$env:ONTOBRIDGE_WEBHOOK_SECRET = "shared-secret"   # optional HMAC signing
+```
+
+Payload:
+```json
+{
+  "event": "term.published",
+  "timestamp": "2026-05-22T10:30:00Z",
+  "term": {
+    "uri": "http://ontobridge.dev/ontology/bank/Mortgage",
+    "label": "Mortgage",
+    "status": "published",
+    "definition": "A loan secured by real property...",
+    "scheme": "Product",
+    "approved_by": "alice",
+    "alt_labels": ["Home Loan"],
+    "fibo_uri": "https://spec.edmcouncil.org/fibo/..."
+  }
+}
+```
+
+Delivery is non-blocking (background thread). Failures are logged but never crash the API.
+
+### Paginated term list
+
+All list endpoints return a `PagedResponse` envelope:
+
+```
+GET /api/terms?limit=100&offset=0
+→ { "items": [...], "total": 450, "limit": 100, "offset": 0 }
+```
+
+Max `limit` is 500. Works on `/api/terms` and `/api/audit`.
 
 ---
 
@@ -361,8 +424,8 @@ FiboMatcher           matches against FIBO labels/synonyms/abbreviations
    |                  adds: closeMatch URI, alt labels, broader concept,
    |                  module, expected definition
    v
-MappingAgent          checks for duplicates against existing glossary
-   |
+MappingAgent          checks for duplicates against ontology concepts
+   |                  AND already-published terms (cross-document dedup)
    v
 TaxonomyAgent         FIBO hierarchy placement (falls back to TF-IDF
    |                  ontology similarity when no FIBO match found)
@@ -446,11 +509,10 @@ ontobridge/
 │       └── components/      # Sidebar, TopBar, shared components
 ├── ontology/
 │   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (103 concepts, 10 schemes)
-├── tests/                   # 598 tests (558 without optional NLP packages)
+├── tests/                   # 616 tests (576 without optional NLP packages)
 ├── mcp_server.py            # MCP server (fastmcp, STDIO/SSE)
 ├── api_server.py            # FastAPI entry point
-├── start_server.ps1         # Shared team server launcher
-└── streamlit_app.py         # Streamlit dashboard (optional)
+└── start_server.ps1         # Shared team server launcher
 ```
 
 ### What is NOT in the repository (gitignored)
