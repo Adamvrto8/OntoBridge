@@ -7,7 +7,7 @@ import io
 from dataclasses import replace
 
 from ontobridge.api.deps import AuditDep, OntologyDep, PublisherDep
-from ontobridge.api.schemas import RelationActionRequest, StatusTransitionRequest, TermDetail, TermPatch, TermSummary
+from ontobridge.api.schemas import PagedResponse, RelationActionRequest, StatusTransitionRequest, TermDetail, TermPatch, TermSummary
 from ontobridge.agents.relations.lexicon import InverseVerbLexicon
 from ontobridge.models.enrichment import CandidateLabel, SemanticRelation, TaxonomyPlacement
 from ontobridge.models.enums import PlacementStatus, RelationStatus
@@ -21,18 +21,32 @@ router = APIRouter(prefix="/terms", tags=["terms"])
 _STATUS_MAP = {s.value: s for s in LifecycleStatus}
 
 
-@router.get("", response_model=list[TermSummary])
+_MAX_LIMIT = 500
+
+
+@router.get("", response_model=PagedResponse[TermSummary])
 def list_terms(
     publisher: PublisherDep,
     search: str = "",
     status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
 ):
+    limit = max(1, min(limit, _MAX_LIMIT))
+    offset = max(0, offset)
     terms = publisher.search_terms(search)
     if status:
         target = _STATUS_MAP.get(status)
         if target:
             terms = [t for t in terms if t.lifecycle_status is target]
-    return [TermSummary.from_published(t) for t in terms]
+    total = len(terms)
+    page = terms[offset: offset + limit]
+    return PagedResponse(
+        items=[TermSummary.from_published(t) for t in page],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/export/csv")

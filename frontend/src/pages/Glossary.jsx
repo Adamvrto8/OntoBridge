@@ -42,7 +42,7 @@ export default function Glossary() {
 
   useEffect(() => {
     setLoading(true)
-    api.terms.list({ status: 'published' }).then(setTerms).finally(() => setLoading(false))
+    api.terms.list({ status: 'published' }).then(data => setTerms(data.items)).finally(() => setLoading(false))
   }, [])
 
   // Unique option lists

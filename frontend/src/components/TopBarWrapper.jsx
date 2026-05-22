@@ -40,9 +40,9 @@ export default function TopBarWrapper() {
   const search = useCallback((q) => {
     if (!q.trim()) { setResults([]); setOpen(false); return }
     setLoading(true)
-    api.terms.list({ search: q })
-      .then(terms => {
-        setResults(terms.slice(0, 8))
+    api.terms.list({ search: q, limit: 8 })
+      .then(data => {
+        setResults(data.items)
         setOpen(true)
         setCursor(-1)
       })

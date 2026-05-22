@@ -25,7 +25,7 @@ export default function AuditLog() {
 
   const load = () => {
     setLoading(true)
-    api.audit.list(200).then(setEntries).finally(() => setLoading(false))
+    api.audit.list(200).then(data => setEntries(data.items)).finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 

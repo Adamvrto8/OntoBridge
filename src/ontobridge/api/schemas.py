@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
+
+T = TypeVar("T")
+
+
+class PagedResponse(BaseModel, Generic[T]):
+    """Standard paginated envelope returned by all list endpoints."""
+    items: list[T]
+    total: int
+    limit: int
+    offset: int
 
 _SEV_ORDER = {"block": 0, "warn": 1, "info": 2}
 _ACTION_TO_SEVERITY = {"block": "crit", "draft": "high", "review": "med", "publish": "low"}

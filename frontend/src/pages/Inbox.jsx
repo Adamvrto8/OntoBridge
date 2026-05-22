@@ -44,10 +44,10 @@ export default function Inbox() {
       api.terms.list({ status: 'review' }),
       api.stats.get(),
       api.audit.list(1),
-    ]).then(([terms, s, audit]) => {
-      setReviewTerms(terms)
+    ]).then(([termsPage, s, auditPage]) => {
+      setReviewTerms(termsPage.items)
       setStats(s)
-      const latest = Array.isArray(audit) ? audit[0] : null
+      const latest = auditPage.items?.[0] ?? null
       setLastRun(latest?.timestamp ? timeAgo(latest.timestamp) : null)
     }).finally(() => setLoading(false))
   }, [])

@@ -27,8 +27,10 @@ async function request(path, options = {}) {
 
 export const api = {
   terms: {
+    // Returns PagedResponse: { items, total, limit, offset }
     list: (params = {}) => {
-      const q = new URLSearchParams(params).toString()
+      const { limit = 500, offset = 0, ...rest } = params
+      const q = new URLSearchParams({ limit, offset, ...rest }).toString()
       return request(`/terms${q ? '?' + q : ''}`)
     },
     get: (uri) => request(`/terms/${encodeURIComponent(uri)}`),
@@ -64,7 +66,8 @@ export const api = {
       request('/pipeline/run', { method: 'POST', body: formData, timeout: 600000 }),
   },
   audit: {
-    list: (limit = 100) => request(`/audit?limit=${limit}`),
+    // Returns PagedResponse: { items, total, limit, offset }
+    list: (limit = 100, offset = 0) => request(`/audit?limit=${limit}&offset=${offset}`),
   },
   stats: {
     get: () => request('/stats'),
