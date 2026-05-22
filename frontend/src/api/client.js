@@ -1,11 +1,16 @@
 const BASE = '/api'
+const API_KEY = import.meta.env.VITE_API_KEY || ''
 
 async function request(path, options = {}) {
-  const { timeout = 30000, ...fetchOptions } = options
+  const { timeout = 30000, headers: callerHeaders = {}, ...fetchOptions } = options
+  const headers = {
+    ...(API_KEY ? { 'X-API-Key': API_KEY } : {}),
+    ...callerHeaders,
+  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
   try {
-    const res = await fetch(`${BASE}${path}`, { ...fetchOptions, signal: controller.signal })
+    const res = await fetch(`${BASE}${path}`, { ...fetchOptions, headers, signal: controller.signal })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
       throw new Error(err.detail || res.statusText)
