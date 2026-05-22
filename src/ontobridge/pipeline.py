@@ -5,7 +5,11 @@ from difflib import SequenceMatcher
 from ontobridge.agents.governance import Candidate, GovernanceAgent, PolicyRef
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.mapping import MappingAgent, from_ontology
-from ontobridge.agents.mapping.glossary import GlossarySource
+from ontobridge.agents.mapping.glossary import (
+    CombinedGlossarySource,
+    GlossarySource,
+    PublisherGlossarySource,
+)
 from ontobridge.agents.mapping.strategies import Encoder
 from ontobridge.agents.definition.agent import LLMDefinitionAgent
 from ontobridge.agents.fibo.matcher import FiboMatcher
@@ -72,8 +76,17 @@ class PipelineRunner:
         from ontobridge.agents.mapping.strategies import TFIDFEncoder
         _encoder = cfg.encoder if cfg.encoder is not None else TFIDFEncoder.from_ontology(ontology)
 
+        # When no custom glossary is supplied, combine the static ontology
+        # concepts with a live view of the publisher.  PublisherGlossarySource
+        # re-reads on every entries() call, so terms published earlier in the
+        # same batch are visible when checking subsequent terms — this catches
+        # both cross-document and within-document duplicates.
         self.glossary: GlossarySource = (
-            glossary if glossary is not None else from_ontology(ontology)
+            glossary if glossary is not None
+            else CombinedGlossarySource(
+                from_ontology(ontology),
+                PublisherGlossarySource(publisher),
+            )
         )
         self.mapping = MappingAgent(
             self.glossary,

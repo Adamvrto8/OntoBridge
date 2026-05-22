@@ -71,3 +71,34 @@ def from_published_terms(terms: Iterable[PublishedTerm]) -> ListGlossarySource:
 
 def from_publisher(publisher: TermPublisher) -> ListGlossarySource:
     return from_published_terms(publisher.search_terms(""))
+
+
+class PublisherGlossarySource:
+    """Live glossary backed by the publisher.
+
+    Re-reads published terms on every ``entries()`` call so that terms
+    published earlier in the same batch are visible when checking
+    subsequent terms.  This is the key property that enables both
+    cross-document and within-document deduplication.
+    """
+
+    def __init__(self, publisher: TermPublisher) -> None:
+        self._publisher = publisher
+
+    def entries(self) -> Iterator[GlossaryEntry]:
+        yield from from_published_terms(self._publisher.search_terms("")).entries()
+
+
+class CombinedGlossarySource:
+    """Chains multiple GlossarySources into one.
+
+    Used to check an incoming term against both the static ontology
+    concepts *and* the live published glossary in a single pass.
+    """
+
+    def __init__(self, *sources: GlossarySource) -> None:
+        self._sources = sources
+
+    def entries(self) -> Iterator[GlossaryEntry]:
+        for source in self._sources:
+            yield from source.entries()
