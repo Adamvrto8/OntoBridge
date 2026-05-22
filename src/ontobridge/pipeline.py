@@ -121,6 +121,7 @@ class PipelineRunner:
         term_uri: str | None = None,
         approved_by: str | None = None,
     ) -> PublishedTerm:
+        self._fibo_definition_fallback(term)
         self._validate_input(term)
         if self.policy_linker is not None:
             self.policy_linker.apply(term)
@@ -165,6 +166,27 @@ class PipelineRunner:
         if best_score >= _OBJECT_RESOLUTION_THRESHOLD:
             return best_uri
         return None
+
+    _MIN_DEFINITION_WORDS = 8
+
+    @staticmethod
+    def _fibo_definition_fallback(term: EnrichedTerm) -> None:
+        """Use FIBO's standardised definition when the document provided none or too few words.
+
+        Only activates when:
+        1. The term matched a FIBO concept with an expected_definition.
+        2. The current definition is missing or shorter than _MIN_DEFINITION_WORDS.
+
+        Marks definition_source = "fibo" so the UI can show the steward where the
+        definition came from and let them override it if their bank defines it differently.
+        """
+        fibo = term.fibo_match
+        if not fibo or not fibo.expected_definition:
+            return
+        current_words = len((term.definition or "").split())
+        if current_words < PipelineRunner._MIN_DEFINITION_WORDS:
+            term.definition = fibo.expected_definition
+            term.definition_source = "fibo"
 
     @staticmethod
     def _validate_input(term: EnrichedTerm) -> None:

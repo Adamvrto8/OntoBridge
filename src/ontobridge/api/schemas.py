@@ -109,6 +109,8 @@ class TermDetail(TermSummary):
     published_at: datetime | None
     fibo_uri: str | None
     fibo_match_type: str | None
+    definition_source: str  # "document" | "fibo" | "llm"
+    fibo_suggested_definition: str | None  # FIBO expected_definition, always included when available
 
     @classmethod
     def from_published(cls, t, ontology=None) -> "TermDetail":
@@ -186,6 +188,8 @@ class TermDetail(TermSummary):
             published_at=t.published_at,
             fibo_uri=fibo.uri if fibo else None,
             fibo_match_type=fibo.match_type if fibo else None,
+            definition_source=et.definition_source,
+            fibo_suggested_definition=fibo.expected_definition if fibo else None,
         )
 
 

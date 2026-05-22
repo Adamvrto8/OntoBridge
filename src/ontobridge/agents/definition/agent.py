@@ -72,6 +72,7 @@ class LLMDefinitionAgent:
         definition = extract_definition(data, min_words=self._min_definition_words)
         if definition:
             term.definition = definition
+            term.definition_source = "llm"
 
         rules = extract_business_rules(data)
         if rules:

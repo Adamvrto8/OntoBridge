@@ -145,6 +145,7 @@ class EnrichedTerm:
     match_result: MatchResult | None = None
     taxonomy_placement: TaxonomyPlacement | None = None
     definition: str | None = None
+    definition_source: str = "document"  # "document" | "fibo" | "llm"
     business_rules: list[BusinessRule] = field(default_factory=list)
     relations: list[SemanticRelation] = field(default_factory=list)
     fibo_match: FIBOMatch | None = None

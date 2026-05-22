@@ -271,6 +271,17 @@ export default function TermDetail() {
           <div className="card-h">
             <h3>Definition</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {term.definition_source && term.definition_source !== 'document' && (
+                <span style={{
+                  fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  padding: '2px 7px', borderRadius: 4,
+                  background: term.definition_source === 'fibo' ? 'var(--green)22' : 'var(--amber)22',
+                  color: term.definition_source === 'fibo' ? 'var(--green)' : 'var(--amber)',
+                  border: `1px solid ${term.definition_source === 'fibo' ? 'var(--green)' : 'var(--amber)'}44`,
+                }}>
+                  {term.definition_source === 'fibo' ? 'FIBO' : 'LLM'}
+                </span>
+              )}
               <span className="meta mono">{term.term_uri.split('/').pop()}</span>
               {!editingDef && (
                 <button className="btn ghost" style={{ height: 26, padding: '0 10px', fontSize: 12 }} onClick={startEditDef}>
@@ -308,6 +319,33 @@ export default function TermDetail() {
               <p style={{ color: 'var(--ink)', lineHeight: 1.6, fontSize: 14 }}>
                 {term.definition || <span style={{ color: 'var(--ink-3)', fontStyle: 'italic' }}>No definition — click Edit to add one.</span>}
               </p>
+            )}
+
+            {/* FIBO suggested definition — shown when available and different from current */}
+            {!editingDef && term.fibo_suggested_definition &&
+              term.fibo_suggested_definition !== term.definition && (
+              <div style={{
+                marginTop: 14, padding: '10px 14px',
+                borderRadius: 'var(--r)',
+                background: 'var(--green)0d',
+                border: '1px solid var(--green)33',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--green)' }}>
+                    FIBO standard definition
+                  </span>
+                  <button
+                    className="btn ghost"
+                    style={{ height: 22, padding: '0 8px', fontSize: 11 }}
+                    onClick={() => { setDefDraft(term.fibo_suggested_definition); setEditingDef(true) }}
+                  >
+                    Apply
+                  </button>
+                </div>
+                <p style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-2)', margin: 0 }}>
+                  {term.fibo_suggested_definition}
+                </p>
+              </div>
             )}
 
             <div style={{ marginTop: 16 }}>
