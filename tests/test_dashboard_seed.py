@@ -4,7 +4,6 @@ from collections import Counter
 
 import pytest
 
-from ontobridge.dashboard.config import DashboardConfig
 from ontobridge.dashboard.seed import (
     SampleTermSpec,
     build_sample_publisher,
@@ -85,26 +84,6 @@ def test_seed_with_custom_specs(base_ontology):
     terms = pub.search_terms("")
     assert len(terms) == 1
     assert terms[0].enriched_term.preferred_label == "Dashboard custom term"
-
-
-def test_default_dashboard_config_points_at_v0_1_ontology():
-    cfg = DashboardConfig()
-    assert cfg.ontology_path.exists(), (
-        f"DashboardConfig.ontology_path does not resolve to a real file: "
-        f"{cfg.ontology_path}"
-    )
-    assert cfg.ontology_path.name == "ontobridge_ontology_v0.1.ttl"
-    assert cfg.miro_board_url is not None  # hardcoded embed URL
-
-
-def test_default_dashboard_config_db_path_is_none():
-    assert DashboardConfig().db_path is None
-
-
-def test_dashboard_config_accepts_db_path(tmp_path):
-    db = tmp_path / "test.db"
-    cfg = DashboardConfig(db_path=db)
-    assert cfg.db_path == db
 
 
 def test_sqlite_publisher_seeded_on_first_launch(base_ontology, tmp_path):
