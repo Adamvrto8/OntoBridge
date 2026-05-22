@@ -14,6 +14,7 @@ from ontobridge.models.enums import PlacementStatus, RelationStatus
 from ontobridge.audit.models import AuditEntry
 from ontobridge.export import export_glossary_csv, export_turtle
 from ontobridge.models.enums import LifecycleStatus
+from ontobridge import webhook
 
 router = APIRouter(prefix="/terms", tags=["terms"])
 
@@ -210,6 +211,21 @@ def transition_status(
         new_status=new_status,
         comment=body.comment,
     ))
+
+    et = updated.enriched_term
+    tp = et.taxonomy_placement
+    fibo = et.fibo_match
+    webhook.fire(
+        event="term.published" if new_status is LifecycleStatus.PUBLISHED else "term.status_changed",
+        term_uri=term_id,
+        term_label=et.preferred_label or term_id,
+        new_status=new_status.value,
+        definition=et.definition,
+        scheme=tp.scheme_uri.rstrip("/").rsplit("/", 1)[-1] if tp and tp.scheme_uri else None,
+        approved_by=body.actor,
+        alt_labels=[c.text for c in et.candidate_labels if c.text != et.preferred_label],
+        fibo_uri=fibo.uri if fibo else None,
+    )
 
     return TermSummary.from_published(updated)
 
