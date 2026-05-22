@@ -383,6 +383,54 @@ def get_taxonomy_concepts(scheme: Optional[str] = None) -> str:
 
 
 @mcp.tool()
+def export_ontology(
+    status: Optional[str] = None,
+    save_to: Optional[str] = None,
+) -> str:
+    """Download the OntoBridge glossary as a single merged SKOS/OWL Turtle file.
+
+    This is the standard format for importing into data platforms like Dawiso,
+    Collibra, or any tool that consumes SKOS ontologies.
+
+    Args:
+        status:  Which terms to include:
+                   - omit or 'published' (default) — only approved, published terms
+                   - 'published,review' — comma-separated list of statuses
+                   - 'all' — every term regardless of lifecycle status
+        save_to: Optional local file path to save the .ttl file to.
+                 e.g. '/tmp/ontology.ttl'. If omitted, returns the content.
+
+    Returns a summary of what was exported (or the Turtle content if save_to is set).
+    """
+    params = {}
+    if status:
+        params["status"] = status
+
+    with httpx.Client(base_url=BASE_URL, timeout=60) as client:
+        r = client.get("/api/terms/export/turtle", params=params)
+        r.raise_for_status()
+        ttl = r.text
+
+    line_count = ttl.count("\n")
+    triple_count = ttl.count(" .")
+
+    if save_to:
+        import pathlib
+        pathlib.Path(save_to).write_text(ttl, encoding="utf-8")
+        return (
+            f"Exported ontology saved to '{save_to}'.\n"
+            f"Approx. {triple_count} triples, {line_count} lines."
+        )
+
+    return (
+        f"Ontology export ready — {triple_count} triples, {line_count} lines.\n"
+        f"Use save_to parameter to write to a file, or fetch directly from:\n"
+        f"  GET {BASE_URL}/api/terms/export/turtle"
+        + (f"?status={status}" if status else "")
+    )
+
+
+@mcp.tool()
 def get_known_verbs() -> str:
     """List the known semantic relation verbs defined in the OntoBridge ontology.
 

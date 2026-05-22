@@ -12,7 +12,7 @@ from ontobridge.agents.relations.lexicon import InverseVerbLexicon
 from ontobridge.models.enrichment import CandidateLabel, SemanticRelation, TaxonomyPlacement
 from ontobridge.models.enums import PlacementStatus, RelationStatus
 from ontobridge.audit.models import AuditEntry
-from ontobridge.export import export_glossary_csv
+from ontobridge.export import export_glossary_csv, export_turtle
 from ontobridge.models.enums import LifecycleStatus
 
 router = APIRouter(prefix="/terms", tags=["terms"])
@@ -42,6 +42,29 @@ def export_csv(publisher: PublisherDep, status: str | None = None):
         io.StringIO(csv_text),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=glossary.csv"},
+    )
+
+
+@router.get("/export/turtle")
+def export_turtle_endpoint(publisher: PublisherDep, status: str | None = None):
+    """Export all terms as a single merged SKOS/OWL Turtle file.
+
+    ?status=published          — only published terms (default)
+    ?status=published,review   — comma-separated list of statuses
+    ?status=all                — every term regardless of status
+    """
+    if status == "all":
+        statuses = set(LifecycleStatus)
+    elif status:
+        statuses = {_STATUS_MAP[s.strip()] for s in status.split(",") if s.strip() in _STATUS_MAP} or None
+    else:
+        statuses = None  # export_turtle defaults to {PUBLISHED}
+
+    ttl = export_turtle(publisher, statuses=statuses)
+    return StreamingResponse(
+        io.StringIO(ttl),
+        media_type="text/turtle",
+        headers={"Content-Disposition": 'attachment; filename="ontology.ttl"'},
     )
 
 

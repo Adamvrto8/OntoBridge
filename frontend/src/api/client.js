@@ -54,6 +54,10 @@ export const api = {
       const q = status ? `?status=${status}` : ''
       window.open(`${BASE}/terms/export/csv${q}`)
     },
+    exportTurtle: (status) => {
+      const q = status ? `?status=${status}` : ''
+      window.open(`${BASE}/terms/export/turtle${q}`)
+    },
   },
   pipeline: {
     run: (formData) =>
