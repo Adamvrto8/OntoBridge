@@ -15,6 +15,7 @@ from ontobridge.audit.models import AuditEntry
 from ontobridge.export import export_glossary_csv, export_turtle
 from ontobridge.models.enums import LifecycleStatus
 from ontobridge import webhook
+from ontobridge.integrations import dawiso as dawiso_integration
 
 router = APIRouter(prefix="/terms", tags=["terms"])
 
@@ -241,7 +242,36 @@ def transition_status(
         fibo_uri=fibo.uri if fibo else None,
     )
 
+    # Publish to Dawiso when term is approved — fire-and-forget, never blocks response
+    if new_status is LifecycleStatus.PUBLISHED:
+        dawiso = dawiso_integration.get_publisher()
+        if dawiso:
+            dawiso.fire(updated)
+
     return TermSummary.from_published(updated)
+
+
+@router.post("/{term_id:path}/publish-dawiso")
+def publish_term_to_dawiso(term_id: str, publisher: PublisherDep):
+    """Manually trigger Dawiso publish for an already-approved term.
+
+    Useful for re-syncing or triggering from the MCP server.
+    Returns {"dawiso_url": "..."} on success.
+    """
+    try:
+        term = publisher.get_term(term_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Term not found")
+
+    if term.lifecycle_status is not LifecycleStatus.PUBLISHED:
+        raise HTTPException(status_code=422, detail="Term must be in PUBLISHED status")
+
+    dawiso = dawiso_integration.get_publisher()
+    if not dawiso:
+        raise HTTPException(status_code=503, detail="Dawiso integration not configured (set DAWISO_URL and DAWISO_TOKEN)")
+
+    url = dawiso.publish(term)
+    return {"dawiso_url": url or "", "term_uri": term_id, "label": term.enriched_term.preferred_label}
 
 
 @router.patch("/{term_id:path}/relations", response_model=TermDetail)

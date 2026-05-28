@@ -383,6 +383,38 @@ def get_taxonomy_concepts(scheme: Optional[str] = None) -> str:
 
 
 @mcp.tool()
+def publish_to_dawiso(uri: str) -> str:
+    """Publish an approved OntoBridge term directly to Dawiso Business Glossary.
+
+    Args:
+        uri: The term URI (use search_glossary to find it).
+
+    Requires DAWISO_URL and DAWISO_TOKEN env vars on the OntoBridge server.
+    The term must be in PUBLISHED status.
+
+    Returns a Dawiso link to the created Business Term, or an error message.
+    """
+    term = _get(f"/terms/{uri}")
+    if term.get("lifecycle_status") != "published":
+        return f"Term '{term.get('preferred_label')}' is not published yet (status: {term.get('lifecycle_status')}). Approve it first."
+
+    # Trigger publish via the OntoBridge Dawiso integration endpoint
+    try:
+        with __import__("httpx").Client(base_url=BASE_URL, timeout=30) as client:
+            r = client.post(f"/api/terms/{uri}/publish-dawiso")
+            if r.is_success:
+                data = r.json()
+                dawiso_url = data.get("dawiso_url", "")
+                label = term.get("preferred_label", uri)
+                if dawiso_url:
+                    return f"'{label}' published to Dawiso: {dawiso_url}"
+                return f"'{label}' published to Dawiso (URL not returned)."
+            return f"Dawiso publish returned {r.status_code}: {r.text[:200]}"
+    except Exception as exc:
+        return f"Dawiso publish failed: {exc}"
+
+
+@mcp.tool()
 def export_ontology(
     status: Optional[str] = None,
     save_to: Optional[str] = None,
