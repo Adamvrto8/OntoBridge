@@ -39,6 +39,19 @@ _DEFINITION_PATTERNS: list[tuple[str, float]] = [
         r'^(?P<term>[A-Z][A-Za-z0-9 \-/]{1,60}):\s+(?P<def>[A-Z][^\n]{20,})',
         0.85,
     ),
+    # Prose: "Term is the/a/an DEFINITION" — common in regulatory docs
+    # e.g. "Identification is the first step preceding..."
+    (
+        r'^(?P<term>[A-Z][A-Za-z]+(?: [A-Za-z]+){0,4})'
+        r' is (?:the|a|an) (?P<def>[A-Za-z][^\n]{20,})',
+        0.75,
+    ),
+    # Prose: "Term is/are DEFINITION" without article — e.g. "Verification means checking..."
+    (
+        r'^(?P<term>[A-Z][A-Za-z]+(?: [A-Za-z]+){0,4})'
+        r' (?:is|are) (?P<def>(?!the |a |an )[A-Za-z][^\n]{25,})',
+        0.70,
+    ),
     # Numbered list: "1. Term means DEFINITION" or "1. Term: DEFINITION"
     (
         r'^\s*\d+[.)]\s+(?P<term>[A-Z][A-Za-z0-9 \-/]{1,60})'
@@ -82,7 +95,13 @@ _MAX_LABEL_WORDS = 7
 _SENTENCE_STARTERS = {
     "this", "the", "a", "an", "these", "those", "that",
     "it", "its", "they", "their", "we", "our", "all", "each",
+    # prepositions / conjunctions
+    "before", "after", "during", "when", "while", "if", "in",
+    "on", "at", "by", "to", "for", "with", "from", "of",
 }
+
+# Minimum term character length (avoids extracting 2-char abbreviations like "KB" as terms)
+_MIN_TERM_CHARS = 3
 
 
 class PatternTermExtractor:
@@ -131,6 +150,12 @@ class PatternTermExtractor:
 
 def _split_sentences(text: str) -> list[str]:
     """Split into matchable chunks, joining multi-line glossary entries."""
+    # "What is X\nX is the..." → "X: X is the..." so the colon pattern fires
+    text = re.sub(
+        r'(?i)what (?:is|are) ([A-Za-z][A-Za-z ]{2,40})\s*\n+',
+        lambda m: m.group(1).capitalize() + ': ',
+        text,
+    )
     # Join colon-terminated lines with the next line: "AML:\n  The process..." -> "AML: The process..."
     text = re.sub(r':\s*\n[ \t]*', ': ', text)
     # Join indented continuation lines: "...failure to meet\n   obligations" -> "...failure to meet obligations"
@@ -169,10 +194,12 @@ def _is_valid(label: str, definition: str) -> bool:
         return False
     if len(definition.split()) < _MIN_DEF_WORDS:
         return False
+    if len(label) < _MIN_TERM_CHARS:
+        return False
     # Reject if label contains sentence-like punctuation
     if re.search(r'[.!?,;]', label):
         return False
-    # Reject sentence fragments that start with articles or demonstratives
+    # Reject sentence fragments that start with articles, demonstratives, or prepositions
     first_word = label.split()[0].casefold() if label else ""
     if first_word in _SENTENCE_STARTERS:
         return False
