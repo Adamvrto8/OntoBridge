@@ -93,11 +93,13 @@ class DawisoPublisher:
             return None
 
         # Derive scheme label → Business Domain name
+        # e.g. "http://.../bank/RiskScheme" → "Risk"
+        #      "http://.../bank/Risk"        → "Risk"
         tp = et.taxonomy_placement
         scheme_label = "OntoBridge"
         if tp and tp.scheme_uri:
             seg = tp.scheme_uri.rstrip("/").rsplit("/", 1)[-1]
-            scheme_label = seg.removeprefix("Scheme") or seg or "OntoBridge"
+            scheme_label = seg.removesuffix("Scheme") or seg or "OntoBridge"
 
         alt_labels = [
             cl.text for cl in et.candidate_labels
@@ -149,12 +151,15 @@ class DawisoPublisher:
         return domain_id
 
     def _search_domain(self, client, name: str) -> int | None:
+        # Filter fields are nested inside "filter" key, and are singular (not arrays)
         try:
             r = client.post("/api/mr-object/filter", json={
-                "objectTypeIds": [_OT_DOMAIN],
-                "applicationId": self._app_id,
-                "spaceIds": [self._space_id],
-                "name": name,
+                "filter": {
+                    "objectTypeId": _OT_DOMAIN,
+                    "applicationId": self._app_id,
+                    "spaceId": self._space_id,
+                    "objectName": name,
+                },
                 "take": 10,
             })
             if r.is_success:

@@ -46,6 +46,15 @@ if (-not $Demo) {
 # CORS: allow all — teammates connect from different IPs
 $env:CORS_ORIGINS = ""
 
+# --- Dawiso integration (optional) ---
+# Set these to automatically publish approved terms to Dawiso Business Glossary.
+# Get jwt and session_id from your browser: DevTools → Network → any request → Cookie header.
+# Leave empty to disable Dawiso publishing.
+$env:DAWISO_URL        = "https://vse-demo.dawiso.cloud"
+$env:DAWISO_SPACE_ID   = "168"   # OntoBridge-test space
+$env:DAWISO_JWT        = "***REMOVED***"
+$env:DAWISO_SESSION_ID = "***REMOVED***="
+
 # --- 4. Print access info ---
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
