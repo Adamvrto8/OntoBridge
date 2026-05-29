@@ -99,7 +99,8 @@ class DawisoPublisher:
         scheme_label = "OntoBridge"
         if tp and tp.scheme_uri:
             seg = tp.scheme_uri.rstrip("/").rsplit("/", 1)[-1]
-            scheme_label = seg.removesuffix("Scheme") or seg or "OntoBridge"
+            clean = seg.removesuffix("Scheme").removeprefix("Scheme")
+            scheme_label = clean or seg or "OntoBridge"
 
         alt_labels = [
             cl.text for cl in et.candidate_labels
