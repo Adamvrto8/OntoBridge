@@ -56,6 +56,22 @@ _OT_SYNONYM = 25   # Synonym
 
 _ATTR_DEF   = 27   # core_business_glossary_definition
 
+# Maps FIBO module abbreviations → OntoBridge ontology scheme names
+# so FIBO-placed terms land in meaningful Dawiso domains
+_FIBO_MODULE_TO_SCHEME: dict[str, str] = {
+    "FBC": "Compliance",
+    "FND": "Organisation",
+    "LOAN": "Product",
+    "SEC": "Product",
+    "BE":  "Organisation",
+    "IND": "Risk",
+    "DER": "Product",
+    "BP":  "Process",
+    "CAE": "Process",
+    "MD":  "Risk",
+    "ACTUS": "Product",
+}
+
 
 class DawisoPublisher:
     """Publishes OntoBridge approved terms to Dawiso Business Glossary.
@@ -77,6 +93,7 @@ class DawisoPublisher:
         self._space_id = space_id
         self._app_id = application_id
         self._domain_cache: dict[str, int] = {}  # scheme_label → domain objectId
+        self._domain_lock = threading.Lock()  # prevents concurrent duplicate domain creation
 
     # ------------------------------------------------------------------
     # Public API
@@ -95,12 +112,13 @@ class DawisoPublisher:
         # Derive scheme label → Business Domain name
         # e.g. "http://.../bank/RiskScheme" → "Risk"
         #      "http://.../bank/Risk"        → "Risk"
+        # FIBO module URIs (FBC, FND, LOAN...) are mapped to ontology scheme names
         tp = et.taxonomy_placement
         scheme_label = "OntoBridge"
         if tp and tp.scheme_uri:
             seg = tp.scheme_uri.rstrip("/").rsplit("/", 1)[-1]
             clean = seg.removesuffix("Scheme").removeprefix("Scheme")
-            scheme_label = clean or seg or "OntoBridge"
+            scheme_label = _FIBO_MODULE_TO_SCHEME.get(clean, clean) or seg or "OntoBridge"
 
         alt_labels = [
             cl.text for cl in et.candidate_labels
@@ -140,16 +158,17 @@ class DawisoPublisher:
     # ------------------------------------------------------------------
 
     def _get_or_create_domain(self, client, scheme_label: str) -> int:
-        if scheme_label in self._domain_cache:
-            return self._domain_cache[scheme_label]
+        with self._domain_lock:
+            if scheme_label in self._domain_cache:
+                return self._domain_cache[scheme_label]
 
-        domain_id = self._search_domain(client, scheme_label)
-        if domain_id is None:
-            # Root-level domains require parentObjectId=None (not 0 — 0 causes 404)
-            domain_id = self._create_object(client, _OT_DOMAIN, scheme_label, parent_object_id=None)
+            domain_id = self._search_domain(client, scheme_label)
+            if domain_id is None:
+                # Root-level domains require parentObjectId=None (not 0 — 0 causes 404)
+                domain_id = self._create_object(client, _OT_DOMAIN, scheme_label, parent_object_id=None)
 
-        self._domain_cache[scheme_label] = domain_id
-        return domain_id
+            self._domain_cache[scheme_label] = domain_id
+            return domain_id
 
     def _search_domain(self, client, name: str) -> int | None:
         # Filter fields are nested inside "filter" key, and are singular (not arrays)
