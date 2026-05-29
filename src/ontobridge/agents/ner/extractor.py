@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from ontobridge.agents.harvester.protocols import ExtractedTerm, RawDocument
 from ontobridge.agents.ner.backend import LLMBackend
 from ontobridge.agents.ner.prompt import (
@@ -41,6 +43,7 @@ class LLMNerExtractor:
         self._backend = backend
         self._min_confidence = min_confidence
         self._min_definition_words = min_definition_words
+        self._cache: dict[str, list] = {}  # sha256(text) → parsed items
 
     def extract(self, doc: RawDocument) -> list[ExtractedTerm]:
         """Extract business terms from one RawDocument paragraph.
@@ -51,11 +54,14 @@ class LLMNerExtractor:
         if not doc.text.strip():
             return []
 
-        response = self._backend.complete(
-            system=SYSTEM_PROMPT,
-            user=build_user_prompt(doc.text),
-        )
-        items = parse_response(response)
+        key = hashlib.sha256(doc.text.encode()).hexdigest()
+        if key not in self._cache:
+            response = self._backend.complete(
+                system=SYSTEM_PROMPT,
+                user=build_user_prompt(doc.text),
+            )
+            self._cache[key] = parse_response(response)
+        items = self._cache[key]
         terms = items_to_extracted_terms(items)
 
         return [
