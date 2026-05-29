@@ -94,9 +94,11 @@ class TaxonomyAgent:
 
         if not ranked or ranked[0].score < self.placement_threshold:
             top = ranked[0] if ranked else None
+            # When token overlap gives nothing, pick the closest scheme by fuzzy name match
+            scheme_uri = (top.concept.scheme if top else None) or self._fallback_scheme(label)
             return TaxonomyPlacement(
                 broader_concept_uri=top.concept.uri if top else None,
-                scheme_uri=top.concept.scheme if top else None,
+                scheme_uri=scheme_uri,
                 domain_prefix=build_curie(label, self.curie_prefix),
                 placement_confidence=top.score if top else 0.0,
                 status=PlacementStatus.UNRESOLVED,
@@ -166,6 +168,17 @@ class TaxonomyAgent:
                 scored.append(_ParentScore(concept=c, score=best_score, matched_label=best_label))
         scored.sort(key=lambda p: (-p.score, p.concept.uri))
         return scored
+
+    def _fallback_scheme(self, label: str) -> str | None:
+        """Pick the best scheme by fuzzy label match when token overlap gives nothing."""
+        best_uri: str | None = None
+        best_score = 0.0
+        for scheme_uri, scheme_label in self.ontology._scheme_labels.items():
+            score = SequenceMatcher(None, label.casefold(), scheme_label.casefold()).ratio()
+            if score > best_score:
+                best_score = score
+                best_uri = scheme_uri
+        return best_uri
 
     def _sibling_conflicts(self, label: str, parent_uri: str) -> list[SiblingConflict]:
         q = label.casefold()

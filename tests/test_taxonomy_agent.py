@@ -143,7 +143,7 @@ def test_unresolved_when_no_overlap_at_all(agent):
     placement = agent.evaluate(_term("Telegraph operator licence xyz"))
     assert placement.status is PlacementStatus.UNRESOLVED
     assert placement.broader_concept_uri is None
-    assert placement.scheme_uri is None
+    assert placement.scheme_uri is not None  # fallback scheme always assigned now
     assert placement.placement_confidence == 0.0
     # Even unresolved placements still propose a CURIE for the steward.
     assert placement.domain_prefix == "bank:TelegraphOperatorLicenceXyz"

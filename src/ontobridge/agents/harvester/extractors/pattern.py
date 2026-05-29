@@ -174,6 +174,8 @@ def _clean_label(raw: str) -> str:
 
 def _clean_definition(raw: str) -> str:
     defn = raw.strip()
+    # Strip leading list markers: "a) ", "(a) ", "1. ", "i. "
+    defn = re.sub(r'^(?:[a-z]{1,3}[.)]\s+|\([a-z]\)\s+|\d+[.)]\s+)', '', defn)
     # Truncate at the next sentence boundary if very long (> 60 words)
     words = defn.split()
     if len(words) > 60:

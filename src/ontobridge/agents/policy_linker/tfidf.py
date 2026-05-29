@@ -4,10 +4,10 @@ Drop-in replacement for PolicyLinkerAgent when chromadb is not available.
 Uses sparse TF cosine similarity to match term label+definition against
 indexed document paragraphs.
 
-Threshold is set lower than the chromadb version (0.15 vs 0.60) because
+Threshold is set lower than the chromadb version (0.30 vs 0.60) because
 sparse bag-of-words similarity is inherently lower than dense embeddings.
-For the policy linker use case, a weak match is far better than no match
-— the only consequence of a missed match is Rule 10 blocking publication.
+0.30 requires meaningful token overlap without being as strict as dense
+embedding similarity.
 """
 from __future__ import annotations
 
@@ -68,12 +68,12 @@ class TFIDFPolicyLinker:
 
     Args:
         threshold: Minimum cosine similarity to count as a valid match (0-1).
-                   Default 0.15 — lower than the chromadb version because
-                   sparse similarity scores are inherently lower.
+                   Default 0.30 — lower than the chromadb version (0.60)
+                   because sparse similarity scores are inherently lower.
         top_k:     Maximum policy paragraphs attached per term.
     """
 
-    def __init__(self, threshold: float = 0.15, top_k: int = 3) -> None:
+    def __init__(self, threshold: float = 0.30, top_k: int = 3) -> None:
         if not 0.0 <= threshold <= 1.0:
             raise ValueError(f"threshold must be in [0.0, 1.0]; got {threshold}")
         self._threshold = threshold

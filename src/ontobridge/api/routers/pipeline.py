@@ -102,7 +102,7 @@ async def run_pipeline(
 
     try:
         from ontobridge.agents.policy_linker import TFIDFPolicyLinker
-        policy_linker = TFIDFPolicyLinker(threshold=0.15, top_k=3)
+        policy_linker = TFIDFPolicyLinker(threshold=0.30, top_k=3)
         try:
             policy_linker.index_document(tmp_path, document_ref=file.filename)
         except Exception:

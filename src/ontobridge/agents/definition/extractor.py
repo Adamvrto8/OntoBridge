@@ -45,6 +45,8 @@ def _split_sentences(text: str) -> list[str]:
             m = re.match(r"^([^:]{1,50}):\s+(.+)$", line, re.DOTALL)
             if m and len(m.group(1).split()) <= 5:
                 head, body = m.group(1).strip(), m.group(2).strip()
+                # body may start with a list marker from the next sub-item ("a) is...")
+                body = re.sub(r'^(?:\d+[.)]\s+|\([a-z]\)\s+|[a-z][.)]\s+)', '', body)
                 if head:
                     sentences.append(head)
                 if body:
