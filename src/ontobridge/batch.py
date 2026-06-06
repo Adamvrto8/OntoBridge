@@ -35,12 +35,18 @@ class BatchResult:
     """Aggregated outcome of a batch pipeline run.
 
     Attributes:
-        published: Terms that completed the pipeline and were stored.
+        published: Brand-new terms that completed the pipeline and were stored.
+        merged:    Terms that already existed; the document was folded in as
+                   provenance (and any new synonyms). No review needed.
+        drifted:   Existing terms the document defines differently — folded in
+                   and flagged for steward review.
         skipped:   Terms rejected at input validation (missing labels /
                    definition) or whose URI already exists in the publisher.
         failed:    Terms that raised an unexpected exception mid-pipeline.
     """
     published: list[PublishedTerm] = field(default_factory=list)
+    merged: list[PublishedTerm] = field(default_factory=list)
+    drifted: list[PublishedTerm] = field(default_factory=list)
     skipped: list[tuple[EnrichedTerm, str]] = field(default_factory=list)
     failed: list[FailedTerm] = field(default_factory=list)
 
@@ -50,15 +56,21 @@ class BatchResult:
 
     @property
     def total(self) -> int:
-        return len(self.published) + len(self.skipped) + len(self.failed)
+        return (
+            len(self.published) + len(self.merged) + len(self.drifted)
+            + len(self.skipped) + len(self.failed)
+        )
 
     @property
     def success_rate(self) -> float:
-        return len(self.published) / self.total if self.total else 0.0
+        ok = len(self.published) + len(self.merged) + len(self.drifted)
+        return ok / self.total if self.total else 0.0
 
     def summary(self) -> str:
         return (
             f"BatchResult: {len(self.published)} published, "
+            f"{len(self.merged)} merged, "
+            f"{len(self.drifted)} drifted, "
             f"{len(self.skipped)} skipped, "
             f"{len(self.failed)} failed "
             f"(total={self.total}, success={self.success_rate:.0%})"
@@ -253,8 +265,13 @@ class BatchPipelineRunner:
     ) -> None:
         label = term.preferred_label or "(unlabelled)"
         try:
-            published = self._runner.run(term, approved_by=approved_by)
-            result.published.append(published)
+            outcome = self._runner.ingest(term, approved_by=approved_by)
+            if outcome.action == "merged":
+                result.merged.append(outcome.term)
+            elif outcome.action == "drifted":
+                result.drifted.append(outcome.term)
+            else:
+                result.published.append(outcome.term)
         except ValueError as exc:
             msg = str(exc)
             # Duplicate URI from the publisher → skipped, not a failure

@@ -207,6 +207,8 @@ class RelationActionRequest(BaseModel):
 
 class PipelineRunResponse(BaseModel):
     published: int
+    merged: int = 0
+    drifted: int = 0
     skipped: int
     failed: int
     terms: list[TermSummary]

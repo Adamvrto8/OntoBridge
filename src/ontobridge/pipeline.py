@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 from difflib import SequenceMatcher
 
 from ontobridge.agents.governance import Candidate, GovernanceAgent, PolicyRef
@@ -17,13 +18,28 @@ from ontobridge.agents.policy_linker import PolicyLinkerAgent, TFIDFPolicyLinker
 from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
 from ontobridge.agents.writer import WriterAgent
-from ontobridge.models.enrichment import EnrichedTerm
-from ontobridge.models.enums import RelationStatus
+from ontobridge.models.enrichment import CandidateLabel, EnrichedTerm
+from ontobridge.models.enums import LifecycleStatus, MatchType, RelationStatus
 from ontobridge.models.published import PublishedTerm
 from ontobridge.pipeline_config import PipelineConfig
-from ontobridge.publisher.base import TermPublisher
+from ontobridge.publisher.base import TermNotFoundError, TermPublisher
 
 _OBJECT_RESOLUTION_THRESHOLD = 0.82
+
+
+@dataclass
+class RunResult:
+    """Outcome of ``PipelineRunner.ingest()``.
+
+    ``action`` is one of:
+      - ``"created"``: a brand-new term was minted and published.
+      - ``"merged"``: the term already existed; the new document was folded in
+        as additional provenance (and any new synonyms), no review needed.
+      - ``"drifted"``: the term already existed but the new document defines it
+        differently; the existing term was flagged for steward review.
+    """
+    term: PublishedTerm
+    action: str
 
 
 class PipelineRunner:
@@ -121,11 +137,58 @@ class PipelineRunner:
         term_uri: str | None = None,
         approved_by: str | None = None,
     ) -> PublishedTerm:
+        """Full create pipeline — always mints and publishes a new term.
+
+        Use :meth:`ingest` for dedup-aware behaviour (merge into an existing
+        term / flag definition drift) in steady-state ingestion.
+        """
+        self._prepare(term)
+        return self._enrich_and_create(term, term_uri=term_uri, approved_by=approved_by)
+
+    def ingest(
+        self,
+        term: EnrichedTerm,
+        *,
+        term_uri: str | None = None,
+        approved_by: str | None = None,
+    ) -> RunResult:
+        """Dedup-aware ingestion for steady-state use.
+
+        If the term already exists in the publisher (exact-label DUPLICATE, or a
+        FUZZY match above ``config.merge_threshold``), the new document is merged
+        into the existing term as provenance instead of creating a duplicate —
+        and the term is flagged for review when the new definition has drifted.
+        Otherwise the term is enriched and published as new.
+        """
+        self._prepare(term)
+        existing = self._existing_published_target(term)
+        if existing is not None:
+            return self._merge_into_existing(existing, term)
+        published = self._enrich_and_create(
+            term, term_uri=term_uri, approved_by=approved_by
+        )
+        return RunResult(term=published, action="created")
+
+    # ------------------------------------------------------------------
+    # Pipeline stages (shared by run / ingest)
+    # ------------------------------------------------------------------
+
+    def _prepare(self, term: EnrichedTerm) -> None:
+        """Stages that run before the create/merge decision."""
         self._fibo_definition_fallback(term)
         self._validate_input(term)
         if self.policy_linker is not None:
             self.policy_linker.apply(term)
         self.mapping.apply(term)
+
+    def _enrich_and_create(
+        self,
+        term: EnrichedTerm,
+        *,
+        term_uri: str | None = None,
+        approved_by: str | None = None,
+    ) -> PublishedTerm:
+        """Stages that enrich a brand-new term and publish it."""
         self.taxonomy.apply(term)
         if self.definition_agent is not None:
             self.definition_agent.apply(term)
@@ -134,6 +197,90 @@ class PipelineRunner:
         candidate = self._term_to_candidate(term)
         term.governance_result = self.governance.evaluate(candidate)
         return self.writer.publish(term, term_uri=term_uri, approved_by=approved_by)
+
+    # ------------------------------------------------------------------
+    # Upsert / drift
+    # ------------------------------------------------------------------
+
+    def _existing_published_target(self, term: EnrichedTerm) -> PublishedTerm | None:
+        """Return the published term this incoming term should merge into, if any.
+
+        Only DUPLICATE matches, and FUZZY matches at/above ``merge_threshold``,
+        are merge candidates — and only when the matched URI is an *already
+        published* term (a match against an unpublished ontology concept means
+        we are minting this term for the first time, so we create it).
+        """
+        mr = term.match_result
+        if mr is None or not mr.target_uri:
+            return None
+        if mr.match_type is MatchType.DUPLICATE:
+            pass
+        elif mr.match_type is MatchType.FUZZY and mr.similarity >= self.config.merge_threshold:
+            pass
+        else:
+            return None
+        try:
+            return self.publisher.get_term(mr.target_uri)
+        except (TermNotFoundError, KeyError):
+            return None
+
+    def _merge_into_existing(
+        self, existing: PublishedTerm, incoming: EnrichedTerm
+    ) -> RunResult:
+        """Fold the incoming document into an existing term.
+
+        Always appends new provenance and any new synonyms. Never overwrites the
+        published definition — instead, when the new definition has drifted from
+        the published one, the term is flagged for review so a steward decides.
+        """
+        enriched = existing.enriched_term
+
+        # Provenance — add document references not already recorded.
+        seen_refs = {(p.document_ref, p.section) for p in enriched.policy_context}
+        for ctx in incoming.policy_context:
+            ref = (ctx.document_ref, ctx.section)
+            if ref not in seen_refs:
+                enriched.policy_context.append(ctx)
+                seen_refs.add(ref)
+
+        # Synonyms — add new candidate labels at reduced confidence.
+        seen_labels = {c.text.casefold() for c in enriched.candidate_labels}
+        for cl in incoming.candidate_labels:
+            if cl.text.casefold() not in seen_labels:
+                enriched.candidate_labels.append(
+                    CandidateLabel(
+                        text=cl.text,
+                        confidence=cl.confidence * 0.8,
+                        ner_label=cl.ner_label,
+                    )
+                )
+                seen_labels.add(cl.text.casefold())
+
+        drift = (
+            self._is_drift(existing, incoming)
+            and existing.lifecycle_status is not LifecycleStatus.DEPRECATED
+        )
+        new_status = (
+            LifecycleStatus.REVIEW if drift else existing.lifecycle_status
+        )
+
+        updated = replace(existing, enriched_term=enriched, lifecycle_status=new_status)
+        updated.turtle = self.writer.to_turtle(updated)
+        saved = self.publisher.update_term(existing.term_uri, updated)
+        return RunResult(term=saved, action="drifted" if drift else "merged")
+
+    def _is_drift(self, existing: PublishedTerm, incoming: EnrichedTerm) -> bool:
+        """True when the incoming definition diverges from the published one."""
+        incoming_def = (incoming.definition or "").strip()
+        if len(incoming_def.split()) < self._MIN_DEFINITION_WORDS:
+            return False
+        existing_def = (existing.enriched_term.definition or "").strip()
+        if not existing_def:
+            return False  # nothing published to conflict with
+        sim = SequenceMatcher(
+            None, existing_def.casefold(), incoming_def.casefold()
+        ).ratio()
+        return sim < self.config.drift_threshold
 
     def _resolve_relation_objects(self, term: EnrichedTerm) -> None:
         """Try to link each relation's object_label to a published term URI."""

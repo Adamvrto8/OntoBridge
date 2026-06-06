@@ -129,7 +129,12 @@ async def run_pipeline(
 
     return PipelineRunResponse(
         published=len(result.published),
+        merged=len(result.merged),
+        drifted=len(result.drifted),
         skipped=len(result.skipped),
         failed=len(result.failed),
-        terms=[TermSummary.from_published(t) for t in result.published],
+        terms=[
+            TermSummary.from_published(t)
+            for t in (result.published + result.drifted)
+        ],
     )

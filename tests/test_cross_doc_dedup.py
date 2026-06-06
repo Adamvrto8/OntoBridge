@@ -173,11 +173,15 @@ def test_within_batch_duplicate_caught(base_ontology):
 
     result = batch.run_terms([t1, t2])
 
-    # t1 published, t2 caught as duplicate by governance and blocked/skipped
+    # t1 published once; t2 is recognised as the same term and merged in as
+    # additional provenance rather than creating a duplicate.
     published_labels = [p.enriched_term.preferred_label for p in result.published]
     assert published_labels.count("Credit Default Swap") == 1
-    # t2 should be in skipped OR in published with CANDIDATE/DRAFT status (governance blocked)
-    total_seen = len(result.published) + len(result.skipped) + len(result.failed)
+    assert len(result.merged) + len(result.drifted) == 1
+    total_seen = (
+        len(result.published) + len(result.merged) + len(result.drifted)
+        + len(result.skipped) + len(result.failed)
+    )
     assert total_seen == 2
 
 

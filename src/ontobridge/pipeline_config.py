@@ -59,6 +59,15 @@ class PipelineConfig:
     policy_linker_threshold: float = 0.60
     policy_linker_top_k: int = 3
 
+    # Upsert / drift (steady-state ingestion)
+    # merge_threshold: minimum fuzzy similarity for an incoming term to be merged
+    #   into an already-published term instead of creating a new one. DUPLICATE
+    #   (exact-label) matches always merge regardless of this value.
+    # drift_threshold: definition similarity below which a merged term is flagged
+    #   for steward review (the new document defines the term differently).
+    merge_threshold: float = 0.92
+    drift_threshold: float = 0.85
+
     # Writer agent namespaces
     bank_namespace: str = "http://ontobridge.dev/ontology/bank/"
     rel_namespace: str = "http://ontobridge.dev/ontology/bank/relations/"
@@ -70,6 +79,8 @@ class PipelineConfig:
             ("placement_threshold", self.placement_threshold),
             ("sibling_conflict_threshold", self.sibling_conflict_threshold),
             ("policy_linker_threshold", self.policy_linker_threshold),
+            ("merge_threshold", self.merge_threshold),
+            ("drift_threshold", self.drift_threshold),
         ]:
             if not 0.0 <= val <= 1.0:
                 raise ValueError(f"{name} must be in [0.0, 1.0]; got {val}")

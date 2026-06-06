@@ -187,15 +187,19 @@ class TestRunTermsErrors:
         result = runner.run_terms([bad])
         assert len(result.skipped) == 1
 
-    def test_duplicate_uri_is_skipped(self, base_ontology):
+    def test_duplicate_term_is_merged_not_duplicated(self, base_ontology):
         pub = InMemoryPublisher()
         runner = BatchPipelineRunner(base_ontology, pub)
         term = _make_term()
-        # First run publishes it; second run hits duplicate URI in publisher
+        # First run publishes it; second run (identical definition) merges in as
+        # provenance rather than creating a duplicate or being skipped.
         runner.run_terms([term], approved_by="alice")
         result = runner.run_terms([_make_term()], approved_by="alice")
-        assert len(result.skipped) == 1
+        assert len(result.merged) == 1
+        assert len(result.drifted) == 0
         assert len(result.failed) == 0
+        # Still only one term in the publisher.
+        assert len(pub.search_terms("")) == 1
 
     def test_one_bad_term_does_not_abort_remaining(self, base_ontology):
         pub = InMemoryPublisher()
@@ -221,7 +225,7 @@ class TestRunTermsErrors:
         def boom(term, *, term_uri=None, approved_by=None):
             raise RuntimeError("unexpected database error")
 
-        monkeypatch.setattr(runner._runner, "run", boom)
+        monkeypatch.setattr(runner._runner, "ingest", boom)
         result = runner.run_terms([_make_term()])
         assert len(result.failed) == 1
         assert result.failed[0].error_type == "RuntimeError"
@@ -232,7 +236,7 @@ class TestRunTermsErrors:
         runner = BatchPipelineRunner(base_ontology, pub)
         term = _make_term()
 
-        monkeypatch.setattr(runner._runner, "run", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        monkeypatch.setattr(runner._runner, "ingest", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
         result = runner.run_terms([term])
         assert result.failed[0].term is term
 
@@ -247,8 +251,11 @@ class TestRunDocument:
         runner = BatchPipelineRunner(base_ontology, pub)
         result = runner.run_document(policy_txt, source_system="policy_repo")
         assert result.total > 0
-        # At least some terms should make it through
-        assert len(result.published) + len(result.skipped) == result.total
+        # Every harvested term lands in exactly one bucket.
+        assert (
+            len(result.published) + len(result.merged) + len(result.drifted)
+            + len(result.skipped) + len(result.failed)
+        ) == result.total
 
     def test_run_document_returns_batch_result(self, base_ontology, policy_txt):
         result = BatchPipelineRunner(
