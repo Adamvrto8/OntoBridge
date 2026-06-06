@@ -26,6 +26,12 @@ def create_app(
 
         ontology = load_ontology(str(ontology_path))
         app.state.ontology = ontology
+        print(
+            f"Ontology loaded from {ontology_path}: "
+            f"{len(ontology.concepts)} concepts, "
+            f"{len(ontology._scheme_labels)} schemes, "
+            f"{len(ontology.object_property_pairs())} relation pairs."
+        )
 
         if db_path is not None:
             from ontobridge.publisher import SqlitePublisher

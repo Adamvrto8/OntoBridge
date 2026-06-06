@@ -12,18 +12,24 @@ REL_NS = "http://ontobridge.dev/ontology/bank/relations/"
 
 # ---------- ontology integration ----------
 
-def test_lexicon_loads_eight_pairs_from_v0_1_ontology(base_ontology):
+def test_lexicon_loads_pairs_from_baseline_ontology(base_ontology):
     lex = InverseVerbLexicon.from_ontology(base_ontology)
-    assert len(lex.pairs) == 8
+    assert len(lex.pairs) == 20
     forwards = {p.forward_label for p in lex.pairs}
+    # The original core verbs are still present...
     assert {"holds", "submits", "uses", "evaluates", "requires",
-            "produces", "governs", "triggers"} == forwards
+            "produces", "governs", "triggers"} <= forwards
+    # ...alongside the expanded secured-lending / compliance verbs.
+    assert {"secures", "guarantees", "repays", "owes",
+            "verifies", "approves", "classifies"} <= forwards
 
 
 def test_lexicon_pairs_have_matching_inverses(base_ontology):
     lex = InverseVerbLexicon.from_ontology(base_ontology)
     for pair in lex.pairs:
-        assert pair.inverse_label.endswith(" by")
+        # Inverse labels are passive forms — usually "X by", or "X to" for
+        # recipient relations (e.g. "charged to").
+        assert pair.inverse_label.endswith(" by") or pair.inverse_label.endswith(" to")
         assert pair.forward_uri.startswith(REL_NS)
         assert pair.inverse_uri.startswith(REL_NS)
 

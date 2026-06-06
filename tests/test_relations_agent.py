@@ -126,12 +126,13 @@ def test_unknown_verb_flagged_as_unresolved_not_dropped(base_ontology):
 def test_mixed_resolved_and_unresolved_in_same_definition(base_ontology):
     agent = RelationsAgent(base_ontology)
     term = _term(
-        definition="Customer holds a credit product and approves the contract."
+        definition="Customer holds a credit product and manages the account."
     )
     rels = agent.evaluate(term)
     by_verb = {r.verb: r for r in rels}
     assert by_verb["holds"].status is RelationStatus.RESOLVED
-    assert by_verb["approves"].status is RelationStatus.UNRESOLVED_VERB
+    # "manages" is a recognised SVO verb but has no ontology relation pair.
+    assert by_verb["manages"].status is RelationStatus.UNRESOLVED_VERB
 
 
 # ---------- subject anchoring ----------

@@ -5,6 +5,18 @@ Extracts business terms from documents, maps them onto a SKOS/OWL ontology, enri
 
 The primary interface is the **React web app** — FastAPI backend + Vite/React frontend. A REST API is exposed for integration with external data platforms (Dawiso, Collibra, etc.).
 
+### Three-layer ontology model
+
+OntoBridge governs terms across three layers, from universal to company-specific:
+
+1. **FIBO** — the EDM Council's industry-standard financial ontology (~16k classes). Universal semantic anchor; bundled, never edited.
+2. **OntoBridge baseline** — `ontology/ontobridge_ontology_v0.1.ttl`, a retail-banking *reference skeleton* (103 concepts, 10 schemes, 20 relation pairs). The default starting point.
+3. **Bank-specific ontology** — a deploying bank supplies its **own** SKOS/OWL schema (its schemes, its product names, its relations) via the `ONTOLOGY_PATH` environment variable. See [Bring your own ontology](#bring-your-own-ontology). `ontology/sample_bank_acme.ttl` is a worked example.
+
+### Deployment
+
+Designed to run **on-premise**, inside the bank's perimeter — sensitive policy documents never leave the building. SQLite is the default store for a single-node pilot; the `TermPublisher` abstraction allows a shared database backend if multiple stewards need concurrent access. No cloud dependency.
+
 ---
 
 ## System requirements
@@ -72,6 +84,14 @@ $env:DB_PATH = "ontobridge.db"
 python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
 ```
 
+**Bank-specific ontology** (load your own schema instead of the baseline):
+```powershell
+$env:ONTOLOGY_PATH = "ontology/sample_bank_acme.ttl"
+python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
+```
+On startup the server prints a one-line summary of what it loaded, e.g.
+`Ontology loaded from ontology/sample_bank_acme.ttl: 18 concepts, 5 schemes, 6 relation pairs.`
+
 > **Do not use `--reload`** — FIBO ontology indexing takes 1–3 minutes at startup; `--reload` would re-index on every code change.
 
 Open **http://localhost:8001** in your browser.  
@@ -79,7 +99,7 @@ Interactive API docs: **http://localhost:8001/docs**
 
 ---
 
-## Full developer install (matches the reference environment — 616 tests)
+## Full developer install (matches the reference environment — 658 tests)
 
 This is what gives you the same setup as the person who set up the project, including all optional NLP packages needed for the full test suite.
 
@@ -102,11 +122,11 @@ python -m spacy download en_core_web_sm
 # 5. Install Node.js frontend dependencies
 cd frontend && npm install && cd ..
 
-# 6. Verify: full test suite should show 616 collected
+# 6. Verify: full test suite should show 658 collected
 pytest --collect-only -q
 ```
 
-Expected output: `616 tests collected` (40 of those require sentence-transformers + spaCy and are skipped automatically when those packages are not installed).
+Expected output: `658 tests collected` (~65 of those require sentence-transformers / spaCy / chromadb and are skipped automatically when those packages are not installed).
 
 ---
 
@@ -176,6 +196,34 @@ npm run dev
 | `.\start_server.ps1 -Port 8001` | Persistent SQLite + builds frontend |
 | `.\start_server.ps1 -Port 8001 -NoBuild` | Skip `npm build` (already built) |
 | `.\start_server.ps1 -Port 8001 -Demo` | In-memory mode (resets on restart) |
+
+---
+
+## Bring your own ontology
+
+OntoBridge ships with a retail-banking **baseline** ontology, but it is not tied to it. A deploying bank points the server at its own SKOS/OWL schema:
+
+```powershell
+$env:ONTOLOGY_PATH = "path/to/your_bank.ttl"
+python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
+```
+
+Every agent (mapping, taxonomy, governance, relations, writer) reads from whatever ontology is loaded — there is nothing hardcoded to the baseline. `ontology/sample_bank_acme.ttl` is a complete worked example (a fictional digital challenger bank with its own namespace, schemes, and relation lexicon).
+
+### Ontology contract
+
+For the pipeline to make full use of a supplied ontology, the `.ttl` should contain:
+
+| Element | Requirement | Used by |
+|---|---|---|
+| `skos:ConceptScheme` + `skos:prefLabel` | Top-level domain groupings (your "schemes") | Taxonomy placement, scheme assignment |
+| `skos:Concept` + `skos:prefLabel` | One per business concept | Mapping (dedup), taxonomy, governance |
+| `skos:definition` | Recommended on every concept | Definition fallback, embedding match quality |
+| `skos:altLabel` | Optional synonyms/abbreviations | Dedup recall, acronym matching |
+| `skos:broader` | Parent link for hierarchy depth | Taxonomy placement, `skos:narrower` back-links |
+| `owl:ObjectProperty` pairs linked by `owl:inverseOf`, **each with `rdfs:label`** (forward **and** inverse) | The relation verb lexicon | Relations agent (SVO + LLM verb resolution) |
+
+Only `skos:Concept` + `skos:prefLabel` is strictly required; everything else degrades gracefully. The startup log reports how many concepts, schemes, and relation pairs were indexed so you can confirm the load.
 
 ---
 
@@ -276,12 +324,12 @@ pytest -k "fibo" -v
 
 ### Test count explained
 
-| Condition | Tests collected | Skipped |
-|---|---|---|
-| Base install `.[api,readers,llm]` | 576 | 3 (chromadb, spaCy, sentence-transformers) |
-| Full dev install `.[dev,embeddings,nlp]` + spaCy model | 616 | 1 (chromadb) |
+| Condition | Result |
+|---|---|
+| Full dev install (`.[dev,embeddings,nlp]` + spaCy model) | **658 passed** |
+| Base install (`.[api,readers,llm]`) | 658 collected; the ~65 tests needing spaCy / sentence-transformers / chromadb skip automatically |
 
-The 40 extra tests (`test_spacy_extractors.py`, `test_sentence_transformer_encoder.py`) use `pytest.importorskip` — they are silently skipped when those packages are absent, so `pytest` still reports 100% pass rate either way.
+The optional-package tests (`test_spacy_extractors.py`, `test_sentence_transformer_encoder.py`, `test_policy_linker_store.py`) use `pytest.importorskip`, so `pytest` reports a 100% pass rate whether or not those packages are installed.
 
 ---
 
@@ -404,7 +452,7 @@ Already configured in `.claude/settings.json` — works automatically when the `
 | `get_taxonomy_concepts(scheme?)` | List ontology concepts |
 | `get_known_verbs()` | List valid semantic relation verbs |
 
-> **GCP note:** Change `ONTOBRIDGE_URL` to the Cloud Run URL — no code changes needed.
+> **Deployment note:** Set `ONTOBRIDGE_URL` to wherever the API is hosted (defaults to `http://localhost:8001`) — no code changes needed.
 
 ---
 
@@ -509,7 +557,7 @@ ontobridge/
 │       └── components/      # Sidebar, TopBar, shared components
 ├── ontology/
 │   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (103 concepts, 10 schemes)
-├── tests/                   # 616 tests (576 without optional NLP packages)
+├── tests/                   # 658 tests (~65 need optional NLP/embedding packages)
 ├── mcp_server.py            # MCP server (fastmcp, STDIO/SSE)
 ├── api_server.py            # FastAPI entry point
 └── start_server.ps1         # Shared team server launcher

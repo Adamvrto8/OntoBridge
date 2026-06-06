@@ -66,10 +66,13 @@ npm run lint
 
 ## Architecture
 
-### Two interfaces, one backend
+### Interface
 
-- **React + Vite** (`frontend/`) — production UI, runs on port 5173, Vite proxies `/api/*` to FastAPI on port 8000
-- **Streamlit** (`streamlit_app.py`) — testing/internal tooling, port 8501, reads the same publisher state
+- **React + Vite** (`frontend/`) — the UI, runs on port 5173, Vite proxies `/api/*` to FastAPI on port 8000 (8001 on Adam's machine). The Streamlit app has been removed; React is the only frontend.
+
+### Per-bank ontology (deployment model)
+
+The ontology is **not** hardcoded. `create_app(ontology_path=...)` injects it, and `api_server.py` reads the `ONTOLOGY_PATH` env var (default `ontology/ontobridge_ontology_v0.1.ttl`). Every agent reads from the loaded `OntologyIndex`. A deploying bank supplies its own SKOS/OWL TTL; `ontology/sample_bank_acme.ttl` is a worked example. Three layers: FIBO (industry) → baseline (`ontobridge_ontology_v0.1.ttl`) → bank-specific. Startup logs a one-line summary (concepts / schemes / relation pairs).
 
 ### Request flow
 
@@ -103,6 +106,16 @@ WriterAgent         mints term URI, serialises to Turtle, calls publisher.create
 ```
 
 All tuneable thresholds live in `src/ontobridge/pipeline_config.py` (`PipelineConfig`).
+
+#### `run()` vs `ingest()` — create vs steady-state upsert
+
+`PipelineRunner.run()` always mints a new term (used by seeding and direct callers). `PipelineRunner.ingest()` is the **dedup-aware** entry point used by `BatchPipelineRunner` (and the upload API):
+
+- Exact DUPLICATE, or FUZZY ≥ `config.merge_threshold` (0.92), against an **already-published** term → merge instead of create. The new document is appended as provenance and new synonyms are folded in; the published definition is **never** overwritten.
+- If the incoming definition has drifted from the published one (similarity < `config.drift_threshold`, 0.85), the existing term is flipped to REVIEW.
+- A match against an unpublished baseline-ontology concept still mints the term (it's the first time we see it).
+
+`ingest()` returns a `RunResult{term, action}` with `action ∈ {created, merged, drifted}`. `BatchResult` has matching `published` / `merged` / `drifted` buckets, surfaced by the pipeline API as counts (e.g. "12 new, 340 merged, 5 drift").
 
 #### RelationsAgent — 4 stages
 

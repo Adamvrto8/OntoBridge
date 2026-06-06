@@ -63,6 +63,13 @@ DEFAULT_VERB_VOCAB: frozenset[str] = frozenset({
     "determines", "determine",
     "generates", "generate",
     "owns", "own",
+    # secured-lending verbs aligned with the expanded ontology relation lexicon
+    # (bare "secure"/"guarantee" omitted — adjective / noun in banking prose)
+    "secures",
+    "guarantees",
+    "owes", "owe",
+    "repays", "repay",
+    "mitigates", "mitigate",
     # banking/document verbs — kept only where the word is unambiguously
     # a verb and not commonly a standalone noun in banking prose
     "allows", "allow",

@@ -1,0 +1,260 @@
+##############################################################################
+# Sample BANK-SPECIFIC ontology — "Acme" digital challenger bank
+#
+# Demonstrates the per-bank deployment model: a deploying bank replaces the
+# bundled baseline ontology with its OWN SKOS/OWL schema — its own namespace,
+# its own concept schemes, its own concepts, and its own relation lexicon.
+#
+# Load it with:   ONTOLOGY_PATH=ontology/sample_bank_acme.ttl
+#
+# Intentionally compact. The structure (schemes, level 1–2 concepts, relation
+# pairs) is what the pipeline reads; leaf terms are populated by ingestion.
+#
+# The only contract the pipeline requires:
+#   - skos:ConceptScheme nodes with skos:prefLabel
+#   - skos:Concept nodes with skos:prefLabel, ideally skos:definition,
+#     skos:inScheme, and skos:broader for hierarchy (skos:altLabel optional)
+#   - owl:ObjectProperty pairs linked with owl:inverseOf, each carrying an
+#     rdfs:label (forward + inverse) — these become the relation verb lexicon
+##############################################################################
+
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix dct:      <http://purl.org/dc/terms/> .
+
+@prefix acme:     <http://acme.example/ontology/> .
+@prefix acme-rel: <http://acme.example/ontology/rel/> .
+
+
+# ==========================================================================
+# ONTOLOGY METADATA
+# ==========================================================================
+
+<http://acme.example/ontology/>
+    a owl:Ontology ;
+    dct:title "Acme Bank — Business Term Ontology"@en ;
+    dct:description "Company-specific SKOS/OWL ontology for a digital challenger bank. Example of a bank-supplied schema replacing the OntoBridge baseline."@en ;
+    dct:created "2026-06-06"^^xsd:date ;
+    dct:creator "Acme Bank Data Office" ;
+    owl:versionInfo "1.0" .
+
+
+# ==========================================================================
+# CONCEPT SCHEMES
+# ==========================================================================
+
+acme:SchemeCustomer  a skos:ConceptScheme ; skos:prefLabel "Customer & Identity"@en .
+acme:SchemeCards     a skos:ConceptScheme ; skos:prefLabel "Cards & Payments"@en .
+acme:SchemeLending   a skos:ConceptScheme ; skos:prefLabel "Lending"@en .
+acme:SchemeRisk      a skos:ConceptScheme ; skos:prefLabel "Risk & Fraud"@en .
+acme:SchemeChannel   a skos:ConceptScheme ; skos:prefLabel "Channels"@en .
+
+
+# ==========================================================================
+# CONCEPTS — Customer & Identity
+# ==========================================================================
+
+acme:Customer
+    a skos:Concept ;
+    skos:prefLabel "Customer"@en ;
+    skos:altLabel "account holder"@en ;
+    skos:definition "A natural person who holds one or more Acme products via the mobile app."@en ;
+    skos:inScheme acme:SchemeCustomer ;
+    skos:topConceptOf acme:SchemeCustomer .
+
+acme:VerifiedCustomer
+    a skos:Concept ;
+    skos:prefLabel "Verified Customer"@en ;
+    skos:definition "A customer whose identity has passed Acme's digital onboarding checks."@en ;
+    skos:inScheme acme:SchemeCustomer ;
+    skos:broader acme:Customer .
+
+acme:BeneficialOwner
+    a skos:Concept ;
+    skos:prefLabel "Beneficial Owner"@en ;
+    skos:altLabel "UBO"@en ;
+    skos:definition "The natural person who ultimately owns or controls a customer account."@en ;
+    skos:inScheme acme:SchemeCustomer ;
+    skos:broader acme:Customer .
+
+acme:DigitalIdentity
+    a skos:Concept ;
+    skos:prefLabel "Digital Identity"@en ;
+    skos:definition "The verified electronic identity used to authenticate a customer."@en ;
+    skos:inScheme acme:SchemeCustomer .
+
+
+# ==========================================================================
+# CONCEPTS — Cards & Payments
+# ==========================================================================
+
+acme:Card
+    a skos:Concept ;
+    skos:prefLabel "Payment Card"@en ;
+    skos:altLabel "card"@en ;
+    skos:definition "A payment instrument issued by Acme for purchases and withdrawals."@en ;
+    skos:inScheme acme:SchemeCards ;
+    skos:topConceptOf acme:SchemeCards .
+
+acme:VirtualCard
+    a skos:Concept ;
+    skos:prefLabel "Virtual Card"@en ;
+    skos:definition "A tokenised card issued instantly in-app with no physical form."@en ;
+    skos:inScheme acme:SchemeCards ;
+    skos:broader acme:Card .
+
+acme:DebitCard
+    a skos:Concept ;
+    skos:prefLabel "Debit Card"@en ;
+    skos:definition "A card drawing directly on the customer's available balance."@en ;
+    skos:inScheme acme:SchemeCards ;
+    skos:broader acme:Card .
+
+acme:Transaction
+    a skos:Concept ;
+    skos:prefLabel "Transaction"@en ;
+    skos:definition "A movement of funds recorded on a customer account."@en ;
+    skos:inScheme acme:SchemeCards ;
+    skos:topConceptOf acme:SchemeCards .
+
+acme:InstantPayment
+    a skos:Concept ;
+    skos:prefLabel "Instant Payment"@en ;
+    skos:altLabel "real-time payment"@en ;
+    skos:definition "A transaction settled in seconds, around the clock."@en ;
+    skos:inScheme acme:SchemeCards ;
+    skos:broader acme:Transaction .
+
+
+# ==========================================================================
+# CONCEPTS — Lending
+# ==========================================================================
+
+acme:CreditProduct
+    a skos:Concept ;
+    skos:prefLabel "Credit Product"@en ;
+    skos:definition "A product that extends credit to a customer."@en ;
+    skos:inScheme acme:SchemeLending ;
+    skos:topConceptOf acme:SchemeLending .
+
+acme:Overdraft
+    a skos:Concept ;
+    skos:prefLabel "Overdraft"@en ;
+    skos:definition "A short-term credit facility allowing the balance to go negative up to a limit."@en ;
+    skos:inScheme acme:SchemeLending ;
+    skos:broader acme:CreditProduct .
+
+acme:ConsumerLoan
+    a skos:Concept ;
+    skos:prefLabel "Consumer Loan"@en ;
+    skos:altLabel "personal loan"@en ;
+    skos:definition "An unsecured instalment loan for personal use."@en ;
+    skos:inScheme acme:SchemeLending ;
+    skos:broader acme:CreditProduct .
+
+acme:CreditLimit
+    a skos:Concept ;
+    skos:prefLabel "Credit Limit"@en ;
+    skos:definition "The maximum credit Acme will extend on a given product."@en ;
+    skos:inScheme acme:SchemeLending .
+
+
+# ==========================================================================
+# CONCEPTS — Risk & Fraud
+# ==========================================================================
+
+acme:RiskControl
+    a skos:Concept ;
+    skos:prefLabel "Risk Control"@en ;
+    skos:definition "A measure that detects or limits financial, credit, or fraud risk."@en ;
+    skos:inScheme acme:SchemeRisk ;
+    skos:topConceptOf acme:SchemeRisk .
+
+acme:FraudCheck
+    a skos:Concept ;
+    skos:prefLabel "Fraud Check"@en ;
+    skos:definition "An automated control that screens transactions for fraud signals."@en ;
+    skos:inScheme acme:SchemeRisk ;
+    skos:broader acme:RiskControl .
+
+acme:CreditScore
+    a skos:Concept ;
+    skos:prefLabel "Credit Score"@en ;
+    skos:definition "A model output estimating a customer's creditworthiness."@en ;
+    skos:inScheme acme:SchemeRisk .
+
+
+# ==========================================================================
+# CONCEPTS — Channels
+# ==========================================================================
+
+acme:Channel
+    a skos:Concept ;
+    skos:prefLabel "Channel"@en ;
+    skos:definition "A means through which a customer interacts with Acme."@en ;
+    skos:inScheme acme:SchemeChannel ;
+    skos:topConceptOf acme:SchemeChannel .
+
+acme:MobileApp
+    a skos:Concept ;
+    skos:prefLabel "Mobile App"@en ;
+    skos:altLabel "app"@en ;
+    skos:definition "Acme's primary customer channel — a smartphone application."@en ;
+    skos:inScheme acme:SchemeChannel ;
+    skos:broader acme:Channel .
+
+
+# ==========================================================================
+# SEMANTIC RELATIONS (verb lexicon)
+# ==========================================================================
+
+acme-rel:holds
+    a owl:ObjectProperty ; rdfs:label "holds"@en ;
+    rdfs:comment "A customer holds a product."@en ;
+    owl:inverseOf acme-rel:heldBy .
+acme-rel:heldBy
+    a owl:ObjectProperty ; rdfs:label "held by"@en ;
+    owl:inverseOf acme-rel:holds .
+
+acme-rel:uses
+    a owl:ObjectProperty ; rdfs:label "uses"@en ;
+    rdfs:comment "A customer uses a channel."@en ;
+    owl:inverseOf acme-rel:usedBy .
+acme-rel:usedBy
+    a owl:ObjectProperty ; rdfs:label "used by"@en ;
+    owl:inverseOf acme-rel:uses .
+
+acme-rel:issues
+    a owl:ObjectProperty ; rdfs:label "issues"@en ;
+    rdfs:comment "Acme issues a card or product."@en ;
+    owl:inverseOf acme-rel:issuedBy .
+acme-rel:issuedBy
+    a owl:ObjectProperty ; rdfs:label "issued by"@en ;
+    owl:inverseOf acme-rel:issues .
+
+acme-rel:verifies
+    a owl:ObjectProperty ; rdfs:label "verifies"@en ;
+    rdfs:comment "A control verifies an identity or transaction."@en ;
+    owl:inverseOf acme-rel:verifiedBy .
+acme-rel:verifiedBy
+    a owl:ObjectProperty ; rdfs:label "verified by"@en ;
+    owl:inverseOf acme-rel:verifies .
+
+acme-rel:repays
+    a owl:ObjectProperty ; rdfs:label "repays"@en ;
+    rdfs:comment "A customer repays a credit product."@en ;
+    owl:inverseOf acme-rel:repaidBy .
+acme-rel:repaidBy
+    a owl:ObjectProperty ; rdfs:label "repaid by"@en ;
+    owl:inverseOf acme-rel:repays .
+
+acme-rel:mitigates
+    a owl:ObjectProperty ; rdfs:label "mitigates"@en ;
+    rdfs:comment "A risk control mitigates a risk."@en ;
+    owl:inverseOf acme-rel:mitigatedBy .
+acme-rel:mitigatedBy
+    a owl:ObjectProperty ; rdfs:label "mitigated by"@en ;
+    owl:inverseOf acme-rel:mitigates .

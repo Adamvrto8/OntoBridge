@@ -46,9 +46,10 @@
     dct:title "OntoBridge — Retail Banking Domain Ontology"@en ;
     dct:description "SKOS/OWL ontology for governing business terms in the retail banking domain, covering customer segments, credit products, processes, risk assessment, documents, and channels. Bridges to FIBO and Schema.org."@en ;
     dct:created "2026-05-01"^^xsd:date ;
+    dct:modified "2026-06-06"^^xsd:date ;
     dct:creator "OntoBridge Team" ;
-    owl:versionInfo "0.1-draft" ;
-    rdfs:comment "Working draft — upper structure stable, leaf terms to be populated by pipeline."@en .
+    owl:versionInfo "0.2" ;
+    rdfs:comment "Baseline reference ontology. The upper structure (schemes, level 1–2 concepts, FIBO bridges, 20-pair relation lexicon) is stable; leaf terms are populated by the pipeline. A deploying bank may replace this file with its own SKOS/OWL ontology via the ONTOLOGY_PATH environment variable for company-specific governance."@en .
 
 
 # ==========================================================================
@@ -533,6 +534,152 @@ bank-rel:triggeredBy
     a owl:ObjectProperty ;
     rdfs:label "triggered by"@en ;
     owl:inverseOf bank-rel:triggers .
+
+# --- secures / securedBy ---
+bank-rel:secures
+    a owl:ObjectProperty ;
+    rdfs:label "secures"@en ;
+    rdfs:comment "Collateral or a guarantee secures a credit obligation."@en ;
+    rdfs:domain bank:Collateral ;
+    rdfs:range bank:FinancialProduct ;
+    owl:inverseOf bank-rel:securedBy .
+
+bank-rel:securedBy
+    a owl:ObjectProperty ;
+    rdfs:label "secured by"@en ;
+    owl:inverseOf bank-rel:secures .
+
+# --- guarantees / guaranteedBy ---
+bank-rel:guarantees
+    a owl:ObjectProperty ;
+    rdfs:label "guarantees"@en ;
+    rdfs:comment "A guarantor guarantees repayment of a credit obligation."@en ;
+    owl:inverseOf bank-rel:guaranteedBy .
+
+bank-rel:guaranteedBy
+    a owl:ObjectProperty ;
+    rdfs:label "guaranteed by"@en ;
+    owl:inverseOf bank-rel:guarantees .
+
+# --- owns / ownedBy ---
+bank-rel:owns
+    a owl:ObjectProperty ;
+    rdfs:label "owns"@en ;
+    rdfs:comment "A party owns an account, asset, or product."@en ;
+    owl:inverseOf bank-rel:ownedBy .
+
+bank-rel:ownedBy
+    a owl:ObjectProperty ;
+    rdfs:label "owned by"@en ;
+    owl:inverseOf bank-rel:owns .
+
+# --- owes / owedBy ---
+bank-rel:owes
+    a owl:ObjectProperty ;
+    rdfs:label "owes"@en ;
+    rdfs:comment "A borrower owes an outstanding debt or balance."@en ;
+    owl:inverseOf bank-rel:owedBy .
+
+bank-rel:owedBy
+    a owl:ObjectProperty ;
+    rdfs:label "owed by"@en ;
+    owl:inverseOf bank-rel:owes .
+
+# --- repays / repaidBy ---
+bank-rel:repays
+    a owl:ObjectProperty ;
+    rdfs:label "repays"@en ;
+    rdfs:comment "A customer repays a loan or credit facility."@en ;
+    owl:inverseOf bank-rel:repaidBy .
+
+bank-rel:repaidBy
+    a owl:ObjectProperty ;
+    rdfs:label "repaid by"@en ;
+    owl:inverseOf bank-rel:repays .
+
+# --- issues / issuedBy ---
+bank-rel:issues
+    a owl:ObjectProperty ;
+    rdfs:label "issues"@en ;
+    rdfs:comment "An institution issues a product, card, statement, or decision."@en ;
+    owl:inverseOf bank-rel:issuedBy .
+
+bank-rel:issuedBy
+    a owl:ObjectProperty ;
+    rdfs:label "issued by"@en ;
+    owl:inverseOf bank-rel:issues .
+
+# --- verifies / verifiedBy ---
+bank-rel:verifies
+    a owl:ObjectProperty ;
+    rdfs:label "verifies"@en ;
+    rdfs:comment "A control or process verifies an identity, document, or condition."@en ;
+    owl:inverseOf bank-rel:verifiedBy .
+
+bank-rel:verifiedBy
+    a owl:ObjectProperty ;
+    rdfs:label "verified by"@en ;
+    owl:inverseOf bank-rel:verifies .
+
+# --- identifies / identifiedBy ---
+bank-rel:identifies
+    a owl:ObjectProperty ;
+    rdfs:label "identifies"@en ;
+    rdfs:comment "A process identifies a customer or beneficial owner."@en ;
+    owl:inverseOf bank-rel:identifiedBy .
+
+bank-rel:identifiedBy
+    a owl:ObjectProperty ;
+    rdfs:label "identified by"@en ;
+    owl:inverseOf bank-rel:identifies .
+
+# --- mitigates / mitigatedBy ---
+bank-rel:mitigates
+    a owl:ObjectProperty ;
+    rdfs:label "mitigates"@en ;
+    rdfs:comment "A control or measure mitigates a risk."@en ;
+    owl:inverseOf bank-rel:mitigatedBy .
+
+bank-rel:mitigatedBy
+    a owl:ObjectProperty ;
+    rdfs:label "mitigated by"@en ;
+    owl:inverseOf bank-rel:mitigates .
+
+# --- charges / chargedTo ---
+bank-rel:charges
+    a owl:ObjectProperty ;
+    rdfs:label "charges"@en ;
+    rdfs:comment "An institution charges a fee or interest to a customer."@en ;
+    owl:inverseOf bank-rel:chargedTo .
+
+bank-rel:chargedTo
+    a owl:ObjectProperty ;
+    rdfs:label "charged to"@en ;
+    owl:inverseOf bank-rel:charges .
+
+# --- approves / approvedBy ---
+bank-rel:approves
+    a owl:ObjectProperty ;
+    rdfs:label "approves"@en ;
+    rdfs:comment "An authority approves an application, limit, or exception."@en ;
+    owl:inverseOf bank-rel:approvedBy .
+
+bank-rel:approvedBy
+    a owl:ObjectProperty ;
+    rdfs:label "approved by"@en ;
+    owl:inverseOf bank-rel:approves .
+
+# --- classifies / classifiedBy ---
+bank-rel:classifies
+    a owl:ObjectProperty ;
+    rdfs:label "classifies"@en ;
+    rdfs:comment "A model or rule classifies a customer, exposure, or transaction."@en ;
+    owl:inverseOf bank-rel:classifiedBy .
+
+bank-rel:classifiedBy
+    a owl:ObjectProperty ;
+    rdfs:label "classified by"@en ;
+    owl:inverseOf bank-rel:classifies .
 
 
 # ==========================================================================
