@@ -6,7 +6,8 @@ import io
 
 from dataclasses import replace
 
-from ontobridge.api.deps import AuditDep, OntologyDep, PublisherDep
+from ontobridge.api.deps import AuditDep, FeedbackStoreDep, OntologyDep, PublisherDep
+from ontobridge.feedback.models import FeedbackEvent
 from ontobridge.api.schemas import PagedResponse, RelationActionRequest, StatusTransitionRequest, TermDetail, TermPatch, TermSummary
 from ontobridge.agents.relations.lexicon import InverseVerbLexicon
 from ontobridge.models.enrichment import CandidateLabel, SemanticRelation, TaxonomyPlacement
@@ -99,6 +100,7 @@ def edit_term(
     body: TermPatch,
     publisher: PublisherDep,
     audit: AuditDep,
+    feedback: FeedbackStoreDep,
     ontology: OntologyDep,
 ):
     try:
@@ -110,7 +112,18 @@ def edit_term(
     changes: list[str] = []
 
     if body.definition is not None:
-        enriched = replace(enriched, definition=body.definition.strip())
+        old_definition = enriched.definition or ""
+        new_definition = body.definition.strip()
+        if old_definition and old_definition != new_definition:
+            feedback.record(FeedbackEvent(
+                event_type="definition_corrected",
+                term_uri=term_id,
+                term_label=enriched.preferred_label or term_id,
+                old_value=old_definition,
+                new_value=new_definition,
+                actor=body.actor,
+            ))
+        enriched = replace(enriched, definition=new_definition)
         changes.append("definition")
 
     if body.alt_labels is not None:
@@ -127,6 +140,16 @@ def edit_term(
 
     if body.broader_concept_uri is not None:
         existing_tp = enriched.taxonomy_placement
+        old_broader = existing_tp.broader_concept_uri if existing_tp else None
+        if old_broader and old_broader != body.broader_concept_uri:
+            feedback.record(FeedbackEvent(
+                event_type="taxonomy_corrected",
+                term_uri=term_id,
+                term_label=enriched.preferred_label or term_id,
+                old_value=old_broader,
+                new_value=body.broader_concept_uri,
+                actor=body.actor,
+            ))
         enriched = replace(enriched, taxonomy_placement=TaxonomyPlacement(
             broader_concept_uri=body.broader_concept_uri,
             scheme_uri=body.scheme_uri or (existing_tp.scheme_uri if existing_tp else None),
@@ -279,6 +302,7 @@ def update_relation(
     term_id: str,
     body: RelationActionRequest,
     publisher: PublisherDep,
+    feedback: FeedbackStoreDep,
 ):
     if body.action not in ("approve", "reject"):
         raise HTTPException(status_code=422, detail="action must be 'approve' or 'reject'")
@@ -288,10 +312,19 @@ def update_relation(
         raise HTTPException(status_code=404, detail="Term not found")
 
     et = term.enriched_term
+    relation_desc = f"{body.verb} → {body.object_label}"
     for i, r in enumerate(et.relations):
         if r.verb == body.verb and r.object_label == body.object_label and r.status == RelationStatus.PROPOSED:
             if body.action == "reject":
                 et.relations.pop(i)
+                feedback.record(FeedbackEvent(
+                    event_type="relation_rejected",
+                    term_uri=term_id,
+                    term_label=et.preferred_label or term_id,
+                    old_value=relation_desc,
+                    new_value="",
+                    actor=getattr(body, "actor", "steward"),
+                ))
             else:
                 new_status = (
                     RelationStatus.RESOLVED
@@ -299,6 +332,14 @@ def update_relation(
                     else RelationStatus.CONFIRMED
                 )
                 r.status = new_status
+                feedback.record(FeedbackEvent(
+                    event_type="relation_approved",
+                    term_uri=term_id,
+                    term_label=et.preferred_label or term_id,
+                    old_value="",
+                    new_value=relation_desc,
+                    actor=getattr(body, "actor", "steward"),
+                ))
             break
     else:
         raise HTTPException(status_code=404, detail="Proposed relation not found")

@@ -1,0 +1,135 @@
+{
+  "timestamp": "2026-06-07 08:34:05",
+  "model": "claude-haiku-4-5-20251001",
+  "taxonomy": [
+    {
+      "label": "Mortgage Loan",
+      "broader_concept": "Mortgage",
+      "scheme": "SchemeProduct",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 2,\n  \"reason\": \"While 'Mortgage' and 'Mortgage Loan' are closely related, placing a specific loan p"
+    },
+    {
+      "label": "Credit Risk",
+      "broader_concept": "Application form",
+      "scheme": "SchemeDocument",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 1,\n  \"reason\": \"The taxonomy placement is semantically incorrect; 'Credit Risk' is a risk managemen"
+    },
+    {
+      "label": "Collateral",
+      "broader_concept": "(none — unresolved)",
+      "scheme": "SchemeCompliance",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 1,\n  \"reason\": \"The placement is semantically incorrect because 'Collateral' should have a clear br"
+    },
+    {
+      "label": "Interest Rate",
+      "broader_concept": "Fixed interest rate",
+      "scheme": "SchemePricing",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\"score\": 1, \"reason\": \"The taxonomy placement is semantically incorrect because 'Fixed interest rate' is a spec"
+    },
+    {
+      "label": "Loan-to-Value Ratio",
+      "broader_concept": "Debt-to-income ratio",
+      "scheme": "SchemeRisk",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 1,\n  \"reason\": \"The taxonomy placement is semantically incorrect because Loan-to-Value Ratio measur"
+    }
+  ],
+  "relations": [
+    {
+      "label": "Mortgage Loan",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\"score\": 1, \"reason\": \"Extracting zero relations for 'Mortgage Loan' is a critical failure, as this term has es"
+    },
+    {
+      "label": "Credit Risk",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\"score\": 1, \"reason\": \"Zero relations extracted is a critical failure; Credit Risk should have meaningful conne"
+    },
+    {
+      "label": "Collateral",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\"score\": 1, \"reason\": \"Zero relations extracted is a critical failure; 'Collateral' has essential banking relat"
+    },
+    {
+      "label": "Interest Rate",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\"score\": 1, \"reason\": \"Zero relations extracted is a critical failure; 'Interest Rate' has fundamental semantic"
+    },
+    {
+      "label": "Loan-to-Value Ratio",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 0,
+      "reason": "[parse error] ```json\n{\"score\": 1, \"reason\": \"Critical failure: zero relations extracted for a fundamental banking metric that inheren"
+    }
+  ],
+  "governance": [
+    {
+      "label": "Mortgage Loan",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "No policy source linked"
+      ],
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 4,\n  \"reason\": \"The BLOCK action is appropriate because the term lacks a documented policy source, "
+    },
+    {
+      "label": "Credit Risk",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 2,\n  \"reason\": \"The BLOCK action is inappropriate because 'Credit Risk' is a foundational banking t"
+    },
+    {
+      "label": "Collateral",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "Single common noun without domain qualifier",
+        "No policy source linked"
+      ],
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 2,\n  \"reason\": \"The BLOCK action is inappropriate; 'Collateral' is a well-established banking term "
+    },
+    {
+      "label": "Interest Rate",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Fuzzy label similarity >= 80%",
+        "No policy source linked",
+        "Same preferred label in another domain with incompatible definition"
+      ],
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 2,\n  \"reason\": \"The BLOCK action is overly restrictive; while R10 and R14 raise valid governance co"
+    },
+    {
+      "label": "Loan-to-Value Ratio",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 0,
+      "reason": "[parse error] ```json\n{\n  \"score\": 2,\n  \"reason\": \"The BLOCK action is inappropriate because the term has a standard, unambiguous bank"
+    }
+  ]
+}

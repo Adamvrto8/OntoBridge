@@ -1,0 +1,135 @@
+{
+  "timestamp": "2026-06-07 08:40:04",
+  "model": "claude-haiku-4-5-20251001",
+  "taxonomy": [
+    {
+      "label": "Mortgage Loan",
+      "broader_concept": "Mortgage",
+      "scheme": "SchemeProduct",
+      "score": 2,
+      "reason": "While 'Mortgage' and 'Mortgage Loan' are closely related, placing a specific loan product under a more abstract financial instrument creates circular or redundant hierarchy; 'Mortgage Loan' should typically be positioned under broader concepts like 'Secured Loan' or 'Loan Product' to establish clearer semantic distinction and avoid conflating the collateral mechanism (mortgage) with the credit product itself (loan)."
+    },
+    {
+      "label": "Credit Risk",
+      "broader_concept": "Application form",
+      "scheme": "SchemeDocument",
+      "score": 1,
+      "reason": "The taxonomy placement is semantically incorrect; 'Credit Risk' is a risk management concept that should be categorized under risk types or financial concepts, not under 'Application form' which is a document artifact."
+    },
+    {
+      "label": "Collateral",
+      "broader_concept": "(none — unresolved)",
+      "scheme": "SchemeCompliance",
+      "score": 1,
+      "reason": "The placement is semantically incorrect because 'Collateral' should have a clear broader concept (such as 'Loan Security,' 'Risk Mitigation,' or 'Credit Enhancement') rather than '(none — unresolved)', and a 0.00 confidence score indicates the agent failed to properly classify this fundamental banking term."
+    },
+    {
+      "label": "Interest Rate",
+      "broader_concept": "Fixed interest rate",
+      "scheme": "SchemePricing",
+      "score": 1,
+      "reason": "The taxonomy placement is semantically incorrect because 'Fixed interest rate' is a specific type of 'Interest Rate', making it a narrower concept (child), not a broader concept (parent)."
+    },
+    {
+      "label": "Loan-to-Value Ratio",
+      "broader_concept": "Debt-to-income ratio",
+      "scheme": "SchemeRisk",
+      "score": 1,
+      "reason": "The taxonomy placement is semantically incorrect because Loan-to-Value Ratio measures collateral coverage relative to loan amount, while Debt-to-income Ratio measures total debt relative to income—these are distinct risk metrics with different purposes and should not have a parent-child relationship."
+    }
+  ],
+  "relations": [
+    {
+      "label": "Mortgage Loan",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "The extraction of zero relations is completely inadequate; 'Mortgage Loan' has critical semantic relationships (secured-by Property, has-Collateral, obligates Borrower, benefits Lender, involves Interest-Rate, etc.) that are essential for a banking ontology and were entirely missed."
+    },
+    {
+      "label": "Credit Risk",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Extracting zero relations for 'Credit Risk' is a critical failure, as this fundamental banking concept has numerous essential connections (e.g., borrower obligations, default events, loss exposure, risk mitigation, collateral, credit assessment) that should be captured in any banking ontology."
+    },
+    {
+      "label": "Collateral",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Zero relations extracted is a critical failure; 'Collateral' has essential banking relationships (pledged-to Lender, secures Loan, seized-upon Default, valued-by Appraisal) that should have been identified for a functional ontology."
+    },
+    {
+      "label": "Interest Rate",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Zero relations extracted is a critical failure; 'Interest Rate' has fundamental banking relationships (charged_on, applied_to, affects_payment, determined_by) that should have been identified for a useful ontology."
+    },
+    {
+      "label": "Loan-to-Value Ratio",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Extracting zero relations for a fundamental banking metric is a critical failure—LTV Ratio has essential semantic connections to loan amount, collateral value, risk assessment, and lending decisions that should have been captured for any useful ontology."
+    }
+  ],
+  "governance": [
+    {
+      "label": "Mortgage Loan",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate because the term lacks a documented policy source, which is a legitimate governance requirement for canonical banking terms, though the definition itself is semantically correct and well-formed."
+    },
+    {
+      "label": "Credit Risk",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 2,
+      "reason": "The BLOCK action is inappropriate because 'Credit Risk' is a foundational banking term with a standard, well-established definition that requires no alternative labeling or source documentation to be operationally useful in governance contexts."
+    },
+    {
+      "label": "Collateral",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "Single common noun without domain qualifier",
+        "No policy source linked"
+      ],
+      "score": 2,
+      "reason": "The BLOCK action is inappropriate because 'Collateral' is a well-established banking term with unambiguous meaning that requires no alternative label, domain qualification is optional for core banking concepts, and blocking on missing source documentation alone is overly restrictive for standard financial terminology."
+    },
+    {
+      "label": "Interest Rate",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Fuzzy label similarity >= 80%",
+        "No policy source linked",
+        "Same preferred label in another domain with incompatible definition"
+      ],
+      "score": 2,
+      "reason": "The BLOCK action is overly restrictive; while R10 and R14 raise valid governance concerns (missing source documentation and need for domain qualifiers), R01 and the fuzzy similarity flag are inappropriate for a foundational banking term with a standard, correct definition that should be reusable across domains."
+    },
+    {
+      "label": "Loan-to-Value Ratio",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 2,
+      "reason": "The BLOCK action is inappropriate because the term has a standard, unambiguous definition in banking with clear policy precedent, making the 'no policy source linked' flag easily remediable rather than blocking-worthy, and the 'exact preferred label match' flag suggests the term is already well-established rather than problematic."
+    }
+  ]
+}

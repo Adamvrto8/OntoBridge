@@ -36,6 +36,7 @@ def create_app(
         if db_path is not None:
             from ontobridge.publisher import SqlitePublisher
             from ontobridge.audit import SqliteAuditLog
+            from ontobridge.feedback import SqliteFeedbackStore
             publisher = SqlitePublisher(str(db_path))
             if publisher.count() == 0:
                 seeded = build_sample_publisher(ontology)
@@ -43,12 +44,17 @@ def create_app(
                     publisher.create_term(term)
             audit_path = db_path.with_stem(db_path.stem + "_audit")
             audit_log = SqliteAuditLog(str(audit_path))
+            feedback_path = db_path.with_stem(db_path.stem + "_feedback")
+            feedback_store = SqliteFeedbackStore(str(feedback_path))
         else:
+            from ontobridge.feedback import InMemoryFeedbackStore
             publisher = build_sample_publisher(ontology)
             audit_log = InMemoryAuditLog()
+            feedback_store = InMemoryFeedbackStore()
 
         app.state.publisher = publisher
         app.state.audit_log = audit_log
+        app.state.feedback_store = feedback_store
 
         # FIBO index — loaded once at startup so pipeline requests never block
         try:

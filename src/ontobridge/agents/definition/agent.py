@@ -40,13 +40,16 @@ class LLMDefinitionAgent:
                               to avoid loading a second model.
         min_definition_words: Minimum word count for the generated definition
                               to be accepted (default 10, mirrors Governance Rule 08).
+        feedback_store:       Optional FeedbackStore — when provided, past steward
+                              definition corrections are injected as few-shot examples.
     """
 
-    def __init__(self, backend, min_definition_words: int = 10) -> None:
+    def __init__(self, backend, min_definition_words: int = 10, feedback_store=None) -> None:
         if min_definition_words < 0:
             raise ValueError("min_definition_words must be >= 0")
         self._backend = backend
         self._min_definition_words = min_definition_words
+        self._feedback_store = feedback_store
 
     def apply(self, term: EnrichedTerm) -> None:
         """Generate and attach an improved definition + business rules to *term*."""
@@ -61,9 +64,13 @@ class LLMDefinitionAgent:
         if not term.preferred_label:
             return
 
+        examples = (
+            self._feedback_store.get_examples("definition_corrected")
+            if self._feedback_store else []
+        )
         response = self._backend.complete(
             system=SYSTEM_PROMPT,
-            user=build_user_prompt(term),
+            user=build_user_prompt(term, examples=examples),
         )
         data = parse_response(response)
         if not data:

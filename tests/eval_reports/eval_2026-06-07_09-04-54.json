@@ -1,0 +1,268 @@
+{
+  "timestamp": "2026-06-07 09:04:54",
+  "model": "claude-haiku-4-5-20251001",
+  "taxonomy": [
+    {
+      "label": "Customer",
+      "broader_concept": "Corporate customer",
+      "scheme": "SchemeParty",
+      "score": 1,
+      "reason": "The placement is semantically incorrect because 'Corporate customer' is a narrower specialization of 'Customer', not a broader parent concept; the hierarchy is inverted."
+    },
+    {
+      "label": "Financial product",
+      "broader_concept": "Credit product",
+      "scheme": "SchemeProduct",
+      "score": 1,
+      "reason": "The taxonomy placement is semantically incorrect because 'Financial product' is a broader umbrella category that encompasses credit products, investment products, deposit products, and payment services, making 'Credit product' an inappropriate parent concept rather than a child concept."
+    },
+    {
+      "label": "Process",
+      "broader_concept": "Anti-money laundering",
+      "scheme": "SchemeProcess",
+      "score": 1,
+      "reason": "The placement is semantically incorrect because 'Process' is a generic operational concept that should not be subordinated to the specific domain 'Anti-money laundering'—AML is one of many processes a bank performs, not a parent category for the general concept of process."
+    },
+    {
+      "label": "Risk assessment",
+      "broader_concept": "Committee",
+      "scheme": "SchemeOrganisation",
+      "score": 1,
+      "reason": "The placement is semantically incorrect; 'Risk assessment' is a process or activity, not an organizational entity, making 'Committee' an inappropriate broader concept for a banking glossary."
+    },
+    {
+      "label": "Document",
+      "broader_concept": "Policy document",
+      "scheme": "SchemeDocument",
+      "score": 2,
+      "reason": "The placement is semantically incorrect because 'Policy document' is too narrow and specific to serve as a parent concept for the generic term 'Document' — the hierarchy is inverted, as policy documents should be a child type of documents, not the parent."
+    },
+    {
+      "label": "Channel",
+      "broader_concept": "Partner channel",
+      "scheme": "SchemeChannel",
+      "score": 2,
+      "reason": "The placement is semantically incorrect because 'Partner channel' is a specific type of channel (third-party distribution), not a broader parent concept that encompasses all channels including direct bank channels like branches, ATMs, and digital platforms."
+    },
+    {
+      "label": "Regulation",
+      "broader_concept": "GDPR compliance",
+      "scheme": "SchemeCompliance",
+      "score": 1,
+      "reason": "The placement is semantically incorrect because 'GDPR compliance' is a specific instance of regulatory compliance, not a broader parent concept for the general term 'Regulation'—the hierarchy is inverted."
+    },
+    {
+      "label": "Pricing term",
+      "broader_concept": "Data steward",
+      "scheme": "SchemeOrganisation",
+      "score": 1,
+      "reason": "The placement is semantically incorrect; 'Pricing term' is a product/service attribute while 'Data steward' is a role/responsibility, making them fundamentally incompatible parent-child concepts in a banking ontology."
+    },
+    {
+      "label": "Organisational unit",
+      "broader_concept": "Department",
+      "scheme": "SchemeOrganisation",
+      "score": 2,
+      "reason": "The placement is semantically incorrect because 'Organisational unit' is a hypernym (broader category) that encompasses departments, divisions, teams, and branches, making it a parent of 'Department' rather than a child, and the confidence score of 0.71 is too low for a hierarchical relationship this fundamental."
+    },
+    {
+      "label": "Information system",
+      "broader_concept": "Customer relationship management system",
+      "scheme": "SchemeIT",
+      "score": 1,
+      "reason": "The placement is semantically incorrect because 'Information system' is a broad, foundational concept that should be a parent of 'Customer relationship management system', not a child; the hierarchy is inverted."
+    }
+  ],
+  "relations": [
+    {
+      "label": "Customer",
+      "relations_count": 1,
+      "relations_summary": "  - \"holds\" → \"is eligible\" [resolved, confidence=1.00]",
+      "score": 1,
+      "reason": "The extracted relation 'holds → is eligible' is semantically incoherent; these are not relational verbs but rather alternative states of the same concept, failing to capture meaningful banking ontology connections like Customer-Product, Customer-Account, or Customer-Service relationships."
+    },
+    {
+      "label": "Financial product",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 2,
+      "reason": "Zero relations extracted is a significant failure; 'Financial product' should have meaningful connections to concepts like 'offered by Bank', 'purchased by Customer', 'has Risk', 'generates Revenue', and 'belongs to Product Category' that are essential for a banking ontology."
+    },
+    {
+      "label": "Process",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Zero relations extracted for a foundational banking term is a critical failure; 'Process' should have meaningful connections to concepts like 'Activity', 'Outcome', 'Control', 'Risk', and 'Compliance' that are essential for banking ontology coherence."
+    },
+    {
+      "label": "Risk assessment",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Zero relations extracted is a critical failure; 'Risk assessment' should have meaningful connections to core banking concepts like 'customer', 'product', 'transaction', 'risk', 'compliance', and 'mitigation' that are essential for a banking ontology."
+    },
+    {
+      "label": "Document",
+      "relations_count": 1,
+      "relations_summary": "  - \"contains\" → \"information relevant to banking operations\" [unresolved_verb, confidence=0.30]",
+      "score": 2,
+      "reason": "The extracted relation is semantically weak and circular—'contains information relevant to banking operations' merely restates the definition rather than establishing meaningful connections to distinct banking concepts like 'Account', 'Transaction', 'Compliance', or 'Customer', and the low confidence (0.30) with an unresolved verb suggests the extraction failed to identify actionable ontological relationships."
+    },
+    {
+      "label": "Channel",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Zero relations extracted is a critical failure; 'Channel' should have meaningful relations such as 'enables_access_to(products/services)', 'serves(customers)', 'supports(transactions)', and 'includes(ATM/online/branch)' that are essential for banking ontology completeness."
+    },
+    {
+      "label": "Regulation",
+      "relations_count": 1,
+      "relations_summary": "  - \"governs\" → \"the conduct of banking operations\" [resolved, confidence=1.00]",
+      "score": 2,
+      "reason": "While 'governs' is semantically correct, the extraction is incomplete and misses critical banking ontology relations such as 'issued_by' (regulatory authority), 'applies_to' (entities/activities), and 'enforced_by' (compliance mechanisms), limiting its utility for comprehensive knowledge representation."
+    },
+    {
+      "label": "Pricing term",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Zero relations extracted is a critical failure—'Pricing term' should have meaningful connections to concepts like 'Banking Product,' 'Service,' 'Cost,' 'Rate,' 'Charge,' and 'Fee,' yet none were identified, rendering the ontology incomplete and unusable."
+    },
+    {
+      "label": "Organisational unit",
+      "relations_count": 0,
+      "relations_summary": "(no relations extracted)",
+      "score": 1,
+      "reason": "Zero relations extracted is a critical failure; 'Organisational unit' has fundamental banking ontology connections (e.g., 'manages activities', 'contains sub-units', 'reports to', 'operates branches', 'employs staff') that should have been identified."
+    },
+    {
+      "label": "Information system",
+      "relations_count": 1,
+      "relations_summary": "  - \"store\" → \"process or transmit business or customer data\" [unresolved_verb, confidence=0.30]",
+      "score": 2,
+      "reason": "The extraction is semantically incomplete and poorly structured—it conflates multiple distinct operations ('process or transmit') into a single relation, misses the critical 'store' verb as a separate relation, fails to identify 'technology platform' as a key object, and the low confidence (0.30) with 'unresolved_verb' status indicates the agent did not properly decompose the definition into meaningful banking ontology relations."
+    }
+  ],
+  "governance": [
+    {
+      "label": "Customer",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Fuzzy label similarity >= 80%",
+        "Same term in another domain (compatible meaning)",
+        "Single common noun without domain qualifier",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate because 'Customer' lacks a domain qualifier (e.g., 'Banking Customer') and has no linked policy source, though the definition itself is semantically sound and the term's ubiquity across domains justifies requiring these governance controls."
+    },
+    {
+      "label": "Financial product",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate because the definition lacks specificity for banking ontology purposes and the missing policy source is a legitimate governance concern, though the term itself is foundational and the flags could benefit from clearer remediation guidance."
+    },
+    {
+      "label": "Process",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "Single common noun without domain qualifier",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate because 'Process' lacks domain specificity (a critical governance issue in banking where the term appears across multiple domains with different meanings), has no authoritative source policy, and requires qualification to ensure semantic precision in data governance contexts."
+    },
+    {
+      "label": "Risk assessment",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Fuzzy label similarity >= 80%",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 2,
+      "reason": "The BLOCK action is inappropriate; 'Risk assessment' is a fundamental banking term with clear, standard meaning that should be APPROVED, not blocked—the triggered rules (preferred label match, fuzzy similarity, cross-domain compatibility) indicate governance maturity, not defects, and the missing policy source is a metadata gap, not a semantic problem."
+    },
+    {
+      "label": "Document",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "Single common noun without domain qualifier",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate because the term lacks domain specificity (R07), has no governance source (R10), and 'Document' as a bare common noun creates ambiguity across banking subdomains (lending, compliance, operations); however, R01 is overly restrictive since alternative labels aren't necessary when the core issues are qualifier addition and source attribution."
+    },
+    {
+      "label": "Channel",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "Single common noun without domain qualifier",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate because 'Channel' lacks domain qualification (e.g., 'Distribution Channel' or 'Customer Channel') and has legitimate multi-domain usage, though the rule requiring source documentation (R10) could be satisfied through existing banking standards rather than blocking."
+    },
+    {
+      "label": "Regulation",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Fuzzy label similarity >= 80%",
+        "Same term in another domain (compatible meaning)",
+        "Single common noun without domain qualifier",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate because the term lacks a domain qualifier (e.g., 'Banking Regulation') and has no linked policy source, which are reasonable governance requirements for a polysemous term used across multiple domains, though the definition itself is semantically sound for banking."
+    },
+    {
+      "label": "Pricing term",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate given the triggered rules, though the 'No policy source linked' flag is the only substantive concern; the other flags (exact label match and cross-domain compatibility) are procedurally sound but less critical than establishing authoritative governance documentation."
+    },
+    {
+      "label": "Organisational unit",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 4,
+      "reason": "The BLOCK action is appropriate given the triggered rules, though the blocking rationale could be stronger: the term lacks a policy source (critical for governance), has potential cross-domain conflicts requiring clarification, and needs source documentation before operational use."
+    },
+    {
+      "label": "Information system",
+      "recommended_action": "block",
+      "triggered_rules": [
+        "Exact preferred label match",
+        "Same term in another domain (compatible meaning)",
+        "No policy source linked"
+      ],
+      "score": 2,
+      "reason": "The BLOCK action is inappropriate because the term has a clear, standard banking definition with compatible cross-domain usage, and blocking on missing policy source alone is overly restrictive for foundational IT governance terminology."
+    }
+  ]
+}

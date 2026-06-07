@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+from typing import TYPE_CHECKING
 
 from ontobridge.models.enrichment import BusinessRule, EnrichedTerm
+
+if TYPE_CHECKING:
+    from ontobridge.feedback.models import FeedbackEvent
 
 SYSTEM_PROMPT = """\
 You are a business glossary writer for a financial institution.
@@ -29,7 +33,10 @@ Output format (strictly):
 """
 
 
-def build_user_prompt(term: EnrichedTerm) -> str:
+def build_user_prompt(
+    term: EnrichedTerm,
+    examples: list[FeedbackEvent] | None = None,
+) -> str:
     parts: list[str] = []
 
     label = term.preferred_label or "(unknown term)"
@@ -52,6 +59,15 @@ def build_user_prompt(term: EnrichedTerm) -> str:
         if pl.broader_concept_uri:
             broader = pl.broader_concept_uri.rsplit("/", 1)[-1].rsplit("#", 1)[-1]
             parts.append(f"Broader concept: {broader}")
+
+    if examples:
+        lines = "\n".join(
+            f'  "{e.term_label}": '
+            f'agent wrote "{e.old_value[:100]}{"..." if len(e.old_value) > 100 else ""}" '
+            f'→ steward corrected to "{e.new_value[:100]}{"..." if len(e.new_value) > 100 else ""}"'
+            for e in examples[:3]
+        )
+        parts.append(f"Past steward corrections (use as style guide):\n{lines}")
 
     return "\n\n".join(parts)
 

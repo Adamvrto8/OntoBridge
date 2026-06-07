@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import math
 import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Mapping
 
 from ontobridge.agents.governance.ontology import ConceptRecord, OntologyIndex
@@ -18,6 +20,10 @@ from ontobridge.models.enums import MatchType, PlacementStatus
 DEFAULT_PLACEMENT_THRESHOLD = 0.5
 DEFAULT_SIBLING_CONFLICT_THRESHOLD = 0.80
 DEFAULT_CURIE_PREFIX = "bank"
+
+_DEFAULT_OVERRIDES = (
+    Path(__file__).resolve().parents[4] / "ontology" / "taxonomy_overrides.json"
+)
 
 _TOKEN_SPLIT = re.compile(r"[\s\-_./]+")
 
@@ -71,6 +77,7 @@ class TaxonomyAgent:
         placement_threshold: float = DEFAULT_PLACEMENT_THRESHOLD,
         sibling_conflict_threshold: float = DEFAULT_SIBLING_CONFLICT_THRESHOLD,
         curie_prefix: str = DEFAULT_CURIE_PREFIX,
+        overrides_path: Path | str | None = _DEFAULT_OVERRIDES,
     ):
         if not 0.0 <= placement_threshold <= 1.0:
             raise ValueError("placement_threshold must be in [0.0, 1.0]")
@@ -81,6 +88,24 @@ class TaxonomyAgent:
         self.placement_threshold = placement_threshold
         self.sibling_conflict_threshold = sibling_conflict_threshold
         self.curie_prefix = curie_prefix
+        self._overrides: dict[str, str] = self._load_overrides(overrides_path)
+
+    @staticmethod
+    def _load_overrides(path: Path | str | None) -> dict[str, str]:
+        if path is None:
+            return {}
+        p = Path(path)
+        if not p.exists():
+            return {}
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            return {
+                k.casefold(): v
+                for k, v in data.items()
+                if not k.startswith("_") and isinstance(v, str)
+            }
+        except Exception:
+            return {}
 
     def evaluate(self, term: EnrichedTerm) -> TaxonomyPlacement:
         label = term.preferred_label
@@ -117,10 +142,26 @@ class TaxonomyAgent:
         )
 
     def apply(self, term: EnrichedTerm) -> EnrichedTerm:
+        # 1. Manual overrides — highest priority
+        override = self._overrides.get((term.preferred_label or "").casefold())
+        if override:
+            concept = self.ontology.by_uri(override)
+            term.taxonomy_placement = TaxonomyPlacement(
+                broader_concept_uri=override,
+                scheme_uri=concept.scheme if concept else None,
+                domain_prefix=build_curie(term.preferred_label or "", self.curie_prefix),
+                placement_confidence=1.0,
+                status=PlacementStatus.PLACED,
+                sibling_conflicts=[],
+            )
+            return term
+
+        # 2. FIBO hierarchy — when matcher found a broader concept
         fibo = term.fibo_match
         if fibo and fibo.broader_uri:
             term.taxonomy_placement = self._fibo_placement(term, fibo)
         else:
+            # 3. Similarity algorithm with length penalty
             term.taxonomy_placement = self.evaluate(term)
         return term
 
@@ -150,11 +191,11 @@ class TaxonomyAgent:
     def _rank_parents(self, label: str, excluded_uri: str | None) -> list[_ParentScore]:
         q_vec = self.encoder.encode(label)
         label_cf = label.casefold()
+        query_tokens = set(label_cf.split())
         scored: list[_ParentScore] = []
         for c in self.ontology.concepts:
             if excluded_uri is not None and c.uri == excluded_uri:
                 continue
-            # A concept cannot be its own broader concept
             if c.pref_label.casefold() == label_cf:
                 continue
             best_score = 0.0
@@ -165,6 +206,16 @@ class TaxonomyAgent:
                     best_score = score
                     best_label = cand_label
             if best_score > 0.0:
+                # Penalise candidates that are more specific than the query:
+                # if query tokens are a subset of the candidate's tokens the
+                # candidate is likely a child/sibling, not a parent.
+                cand_tokens = set(best_label.casefold().split())
+                if query_tokens and query_tokens.issubset(cand_tokens) and len(cand_tokens) > len(query_tokens):
+                    best_score *= 0.25
+                else:
+                    # Mild length penalty — shorter labels tend to be more general
+                    extra_words = max(0, len(cand_tokens) - 2)
+                    best_score /= 1.0 + 0.2 * extra_words
                 scored.append(_ParentScore(concept=c, score=best_score, matched_label=best_label))
         scored.sort(key=lambda p: (-p.score, p.concept.uri))
         return scored

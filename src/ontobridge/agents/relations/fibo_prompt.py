@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 from ontobridge.agents.fibo.matcher import FiboRelation
 from ontobridge.models.enrichment import EnrichedTerm
+
+if TYPE_CHECKING:
+    from ontobridge.feedback.models import FeedbackEvent
 
 SYSTEM_PROMPT = """\
 You are a financial ontology expert helping to identify semantic relations for \
@@ -24,6 +28,8 @@ def build_user_prompt(
     term: EnrichedTerm,
     fibo_relations: list[FiboRelation],
     match_type: str,
+    approved: list[FeedbackEvent] | None = None,
+    rejected: list[FeedbackEvent] | None = None,
 ) -> str:
     label = term.preferred_label or "unknown"
     definition = term.definition or "(no definition)"
@@ -46,6 +52,14 @@ def build_user_prompt(
         "none": "This term has no FIBO equivalent — derive relations purely from the policy context.",
     }.get(match_type, "")
 
+    feedback_section = ""
+    if approved:
+        lines = "\n".join(f'  "{e.term_label}" → {e.new_value}' for e in approved[:3])
+        feedback_section += f"\nSteward-approved relations (these types are valued):\n{lines}\n"
+    if rejected:
+        lines = "\n".join(f'  "{e.term_label}" → {e.old_value}' for e in rejected[:3])
+        feedback_section += f"\nSteward-rejected relations (avoid proposing these types):\n{lines}\n"
+
     return f"""\
 Term: {label}
 Definition: {definition}
@@ -56,7 +70,7 @@ Known FIBO relations for the matched concept:
 
 Policy context snippets:
 {context_snippets}
-
+{feedback_section}
 Propose additional relations specific to this term's business context \
 (do not repeat the FIBO relations listed above):"""
 

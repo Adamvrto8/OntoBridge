@@ -25,12 +25,14 @@ class RelationsAgent:
         lexicon: InverseVerbLexicon | None = None,
         fibo_matcher: FiboMatcher | None = None,
         llm_backend=None,
+        feedback_store=None,
     ):
         self.ontology = ontology
         self.lexicon = lexicon if lexicon is not None else InverseVerbLexicon.from_ontology(ontology)
         self.extractor = extractor if extractor is not None else RegexHeuristicExtractor()
         self.fibo_matcher = fibo_matcher
         self.llm_backend = llm_backend
+        self.feedback_store = feedback_store
 
     def evaluate(self, term: EnrichedTerm) -> list[SemanticRelation]:
         subject_uri = self._resolve_subject_uri(term)
@@ -181,10 +183,18 @@ class RelationsAgent:
             build_user_prompt,
             parse_response,
         )
+        approved = (
+            self.feedback_store.get_examples("relation_approved")
+            if self.feedback_store else []
+        )
+        rejected = (
+            self.feedback_store.get_examples("relation_rejected")
+            if self.feedback_store else []
+        )
         try:
             response = self.llm_backend.complete(
                 system=SYSTEM_PROMPT,
-                user=build_user_prompt(term, fibo_rels, match_type),
+                user=build_user_prompt(term, fibo_rels, match_type, approved=approved, rejected=rejected),
             )
             proposals = parse_response(response)
         except Exception:

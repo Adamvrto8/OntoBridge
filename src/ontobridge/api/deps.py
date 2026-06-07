@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
 from ontobridge.audit.base import AuditLog
+from ontobridge.feedback.base import FeedbackStore
 from ontobridge.publisher.base import TermPublisher
 
 _API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -48,7 +49,12 @@ def get_fibo_matcher(request: Request):
     return getattr(request.app.state, "fibo_matcher", None)
 
 
+def get_feedback_store(request: Request) -> FeedbackStore:
+    return request.app.state.feedback_store
+
+
 PublisherDep = Annotated[TermPublisher, Depends(get_publisher)]
 AuditDep = Annotated[AuditLog, Depends(get_audit_log)]
 OntologyDep = Annotated[object, Depends(get_ontology)]
 FiboMatcherDep = Annotated[object, Depends(get_fibo_matcher)]
+FeedbackStoreDep = Annotated[FeedbackStore, Depends(get_feedback_store)]
