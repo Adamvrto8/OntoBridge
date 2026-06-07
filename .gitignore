@@ -19,6 +19,9 @@ htmlcov/
 venv/
 env/
 
+# Secrets — never commit
+.env
+
 # IDE
 .vscode/
 .idea/

@@ -101,7 +101,7 @@ Interactive API docs: **http://localhost:8001/docs**
 
 ---
 
-## Full developer install (matches the reference environment — 658 tests)
+## Full developer install (matches the reference environment — 745 tests)
 
 This is what gives you the same setup as the person who set up the project, including all optional NLP packages needed for the full test suite.
 
@@ -124,11 +124,11 @@ python -m spacy download en_core_web_sm
 # 5. Install Node.js frontend dependencies
 cd frontend && npm install && cd ..
 
-# 6. Verify: full test suite should show 658 collected
+# 6. Verify: full test suite should show 745 collected
 pytest --collect-only -q
 ```
 
-Expected output: `658 tests collected` (~65 of those require sentence-transformers / spaCy / chromadb and are skipped automatically when those packages are not installed).
+Expected output: `745 tests collected` (~65 of those require sentence-transformers / spaCy / chromadb and are skipped automatically when those packages are not installed).
 
 ---
 
@@ -328,8 +328,8 @@ pytest -k "fibo" -v
 
 | Condition | Result |
 |---|---|
-| Full dev install (`.[dev,embeddings,nlp]` + spaCy model) | **658 passed** |
-| Base install (`.[api,readers,llm]`) | 658 collected; the ~65 tests needing spaCy / sentence-transformers / chromadb skip automatically |
+| Full dev install (`.[dev,embeddings,nlp]` + spaCy model) | **745 passed** |
+| Base install (`.[api,readers,llm]`) | 745 collected; the ~65 tests needing spaCy / sentence-transformers / chromadb skip automatically |
 
 The optional-package tests (`test_spacy_extractors.py`, `test_sentence_transformer_encoder.py`, `test_policy_linker_store.py`) use `pytest.importorskip`, so `pytest` reports a 100% pass rate whether or not those packages are installed.
 
@@ -588,3 +588,52 @@ ontobridge/
 | **Pipeline Stats** | Extraction and governance metrics by scheme |
 | **Knowledge Graph** | Force-directed graph of terms and resolved semantic relations |
 | **Audit Log** | Full history of all governance actions |
+
+---
+
+## Contributing
+
+### Branching model
+
+```
+main          ← stable, always deployable
+  └── feature/<short-description>    e.g. feature/taxonomy-overrides
+  └── fix/<short-description>        e.g. fix/fibo-match-inversion
+  └── chore/<short-description>      e.g. chore/update-readme
+```
+
+### Workflow
+
+1. **Create a branch** from `main`:
+   ```bash
+   git checkout main && git pull
+   git checkout -b feature/your-feature
+   ```
+
+2. **Make changes**, run tests before committing:
+   ```bash
+   pytest
+   ```
+
+3. **Push and open a Pull Request** against `main`:
+   ```bash
+   git push -u origin feature/your-feature
+   # then open a PR on GitHub
+   ```
+
+4. **PR requirements** before merging:
+   - All tests pass
+   - At least one reviewer approval
+   - No secrets or database files committed
+
+5. **Merge** via GitHub (squash or merge commit) — delete the branch after merge.
+
+### Environment setup for contributors
+
+Copy `.env.example` to `.env` and fill in only the values you need locally:
+
+```bash
+cp .env.example .env
+```
+
+Never commit `.env`. It is listed in `.gitignore`.
