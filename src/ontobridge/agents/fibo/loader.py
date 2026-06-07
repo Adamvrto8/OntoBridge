@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
 from rdflib import Graph, RDFS, SKOS, OWL, RDF, URIRef as _URIRef
 from rdflib.term import URIRef, BNode
+
+# FIBO source files ship a handful of non-ISO dateTime literals (unpadded
+# months/days, e.g. "2025-10-6T18:00:00"). rdflib logs a warning + traceback
+# for each one while parsing. They are harmless — the value resolves to None and
+# the pipeline never reads FIBO dates — so quiet that specific logger to keep
+# startup output clean.
+logging.getLogger("rdflib.term").setLevel(logging.ERROR)
 
 _CMNS_AV = "https://www.omg.org/spec/Commons/AnnotationVocabulary/"
 CMNS_SYNONYM      = _URIRef(_CMNS_AV + "synonym")
