@@ -99,17 +99,30 @@ async def run_pipeline(
     approved_by: str = Form(default=""),
     use_llm_ner: bool = Form(default=False),
     use_llm_def: bool = Form(default=False),
+    use_llm_rel: bool = Form(default=False),
     llm_backend: str = Form(default="ollama"),
     llm_model: str = Form(default="gemma4:26b"),
     llm_api_key: str = Form(default=""),
 ):
     api_key = llm_api_key.strip() or None
+
+    # Build a single LLM backend if any LLM feature needs one, and reuse it for
+    # extraction, definitions, and relations. This decouples LLM relation
+    # extraction from the "improve definitions" toggle: relations use the LLM
+    # whenever an LLM is configured for the run (NER, definitions, or relations).
+    backend = None
+    if use_llm_ner or use_llm_def or use_llm_rel:
+        try:
+            backend = _build_backend(llm_backend, llm_model, api_key)
+        except (ImportError, ValueError) as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
     harvester = HarvesterAgent(fibo_matcher=fibo_matcher)
     if use_llm_ner:
         try:
             from ontobridge.agents.ner.extractor import LLMNerExtractor
             harvester = HarvesterAgent(
-                extractor=LLMNerExtractor(_build_backend(llm_backend, llm_model, api_key)),
+                extractor=LLMNerExtractor(backend),
                 fibo_matcher=fibo_matcher,
             )
         except (ImportError, ValueError) as e:
@@ -119,9 +132,14 @@ async def run_pipeline(
     if use_llm_def:
         try:
             from ontobridge.agents.definition.agent import LLMDefinitionAgent
-            definition_agent = LLMDefinitionAgent(_build_backend(llm_backend, llm_model, api_key))
+            definition_agent = LLMDefinitionAgent(backend)
         except (ImportError, ValueError) as e:
             raise HTTPException(status_code=422, detail=str(e))
+
+    # Relations reuse whatever backend the run already built — so enabling LLM
+    # NER (or definitions, or use_llm_rel) is enough to get LLM relations. A
+    # pure pattern-only run builds no backend, so relations stay on SVO.
+    rel_backend = backend
 
     suffix = Path(file.filename or "upload.txt").suffix
     content = await file.read()
@@ -148,6 +166,7 @@ async def run_pipeline(
             definition_agent=definition_agent,
             fibo_matcher=fibo_matcher,
             policy_linker=policy_linker,
+            llm_backend=rel_backend,
         )
         result = runner.run_document(
             tmp_path,

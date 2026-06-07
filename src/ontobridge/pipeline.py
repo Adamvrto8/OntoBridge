@@ -76,6 +76,7 @@ class PipelineRunner:
         policy_linker: PolicyLinkerAgent | TFIDFPolicyLinker | None = None,
         definition_agent: LLMDefinitionAgent | None = None,
         fibo_matcher: FiboMatcher | None = None,
+        llm_backend=None,
     ):
         cfg = config or PipelineConfig(encoder=encoder)
 
@@ -116,11 +117,18 @@ class PipelineRunner:
             placement_threshold=cfg.placement_threshold,
             sibling_conflict_threshold=cfg.sibling_conflict_threshold,
         )
-        llm_backend = definition_agent._backend if definition_agent is not None else None
+        # Relations use an explicit backend when provided, otherwise fall back to
+        # the definition agent's backend. This decouples LLM relation extraction
+        # from the "improve definitions" toggle — relations get the LLM whenever
+        # one is configured for the run (e.g. LLM NER), not only when definitions
+        # are being rewritten.
+        rel_backend = llm_backend or (
+            definition_agent._backend if definition_agent is not None else None
+        )
         self.relations = RelationsAgent(
             ontology,
             fibo_matcher=fibo_matcher,
-            llm_backend=llm_backend,
+            llm_backend=rel_backend,
         )
         self.governance = GovernanceAgent(ontology)
         self.writer = WriterAgent(

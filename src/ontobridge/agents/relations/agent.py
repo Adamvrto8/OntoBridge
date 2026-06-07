@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from ontobridge.agents.fibo.matcher import FiboMatcher, FiboRelation
 from ontobridge.agents.governance.ontology import OntologyIndex
 from ontobridge.agents.relations.extractor import (
@@ -11,6 +13,8 @@ from ontobridge.agents.relations.lexicon import InverseVerbLexicon
 from ontobridge.models.enrichment import EnrichedTerm, SemanticRelation
 from ontobridge.models.enums import RelationStatus
 from ontobridge.models.fibo import FIBOMatch
+
+_log = logging.getLogger(__name__)
 
 UNRESOLVED_VERB_CONFIDENCE = 0.3
 _SKOS_CLOSE_MATCH = "http://www.w3.org/2004/02/skos/core#closeMatch"
@@ -197,7 +201,11 @@ class RelationsAgent:
                 user=build_user_prompt(term, fibo_rels, match_type, approved=approved, rejected=rejected),
             )
             proposals = parse_response(response)
-        except Exception:
+        except Exception as exc:
+            _log.warning(
+                "LLM relation proposal failed for %r: %s: %s",
+                term.preferred_label, type(exc).__name__, exc,
+            )
             return []
 
         result: list[SemanticRelation] = []

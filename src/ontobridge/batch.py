@@ -124,6 +124,7 @@ class BatchPipelineRunner:
         policy_linker: AnyPolicyLinker | None = None,
         definition_agent: LLMDefinitionAgent | None = None,
         fibo_matcher: FiboMatcher | None = None,
+        llm_backend=None,
     ) -> None:
         self._runner = PipelineRunner(
             ontology, publisher,
@@ -131,6 +132,7 @@ class BatchPipelineRunner:
             policy_linker=policy_linker,
             definition_agent=definition_agent,
             fibo_matcher=fibo_matcher,
+            llm_backend=llm_backend,
         )
         self._harvester = harvester or HarvesterAgent()
         self._on_progress = on_progress

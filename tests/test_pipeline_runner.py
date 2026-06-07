@@ -218,3 +218,36 @@ def test_runner_encoder_is_called_during_run(base_ontology):
     runner.run(_premium_customer_term(), approved_by="steward.alice")
     # Both MappingAgent (EmbeddingSimilarityStrategy) and TaxonomyAgent call encode()
     assert len(enc.calls) > 0
+
+
+class _FakeBackend:
+    def complete(self, system, user):
+        return "[]"
+
+
+def test_llm_relations_decoupled_from_definition_agent(base_ontology):
+    """An explicit llm_backend reaches RelationsAgent even with no definition agent.
+
+    Regression: LLM relation extraction used to be wired only through the
+    definition agent, so turning off "improve definitions" silently disabled
+    LLM relations even when an LLM was configured for the run (e.g. LLM NER).
+    """
+    fake = _FakeBackend()
+    runner = PipelineRunner(base_ontology, InMemoryPublisher(), llm_backend=fake)
+    assert runner.relations.llm_backend is fake
+
+
+def test_no_llm_backend_means_no_llm_relations(base_ontology):
+    runner = PipelineRunner(base_ontology, InMemoryPublisher())
+    assert runner.relations.llm_backend is None
+
+
+def test_definition_agent_backend_used_as_fallback(base_ontology):
+    """With no explicit backend, the definition agent's backend is reused."""
+    from ontobridge.agents.definition.agent import LLMDefinitionAgent
+
+    fake = _FakeBackend()
+    runner = PipelineRunner(
+        base_ontology, InMemoryPublisher(), definition_agent=LLMDefinitionAgent(fake)
+    )
+    assert runner.relations.llm_backend is fake
