@@ -98,7 +98,12 @@ class AnthropicBackend:
 
     def complete(self, system: str, user: str) -> str:
         if self._client is None:
-            self._client = self._anthropic.Anthropic(api_key=self._api_key)
+            # max_retries=6: SDK retries 429/5xx with exponential backoff
+            # (1s, 2s, 4s, 8s, 16s, 32s) before raising
+            self._client = self._anthropic.Anthropic(
+                api_key=self._api_key,
+                max_retries=6,
+            )
 
         message = self._client.messages.create(
             model=self._model,

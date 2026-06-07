@@ -40,9 +40,11 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ontobridge.models.enrichment import EnrichedTerm
     from ontobridge.models.published import PublishedTerm
 
 logger = logging.getLogger(__name__)
@@ -72,6 +74,12 @@ _FIBO_MODULE_TO_SCHEME: dict[str, str] = {
     "ACTUS": "Product",
 }
 
+@dataclass
+class DawisoTermInfo:
+    object_id: int
+    name: str
+    alt_labels: list[str]
+
 
 class DawisoPublisher:
     """Publishes OntoBridge approved terms to Dawiso Business Glossary.
@@ -90,6 +98,10 @@ class DawisoPublisher:
     ) -> None:
         self._base = base_url.rstrip("/")
         self._cookies = {"jwt": jwt, "session_id": session_id}
+        self._headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {jwt}"
+        }
         self._space_id = space_id
         self._app_id = application_id
         self._domain_cache: dict[str, int] = {}  # scheme_label → domain objectId
@@ -98,6 +110,103 @@ class DawisoPublisher:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def get_scheme_label(self, term: "PublishedTerm | EnrichedTerm") -> str:
+        et = getattr(term, "enriched_term", term)
+        tp = et.taxonomy_placement
+        scheme_label = "OntoBridge"
+        if tp and tp.scheme_uri:
+            seg = tp.scheme_uri.rstrip("/").rsplit("/", 1)[-1]
+            clean = seg.removesuffix("Scheme").removeprefix("Scheme")
+            scheme_label = _FIBO_MODULE_TO_SCHEME.get(clean, clean) or seg or "OntoBridge"
+        return scheme_label
+
+    def find_domain(self, scheme_label: str) -> int | None:
+        import httpx
+        try:
+            with httpx.Client(base_url=self._base, headers=self._headers, timeout=30) as client:
+                return self._search_domain(client, scheme_label)
+        except Exception as exc:
+            logger.debug("Dawiso find_domain failed: %s", exc)
+            return None
+
+    def find_term(self, domain_id: int, term_name: str) -> DawisoTermInfo | None:
+        import httpx
+        try:
+            with httpx.Client(base_url=self._base, headers=self._headers, timeout=30) as client:
+                return self._find_term_with_client(client, domain_id, term_name)
+        except Exception as exc:
+            logger.debug("Dawiso find_term failed: %s", exc)
+        return None
+
+    def _record_name(self, record: dict) -> str:
+        return str(record.get("objectName") or record.get("name") or "").strip()
+
+    def _find_term_with_client(self, client, domain_id: int, term_name: str) -> DawisoTermInfo | None:
+        r = client.post("/api/mr-object/filter", json={
+            "filter": {
+                "objectTypeId": _OT_TERM,
+                "parentObjectId": domain_id,
+                "spaceId": self._space_id,
+                "applicationId": self._app_id,
+                "objectName": term_name,
+            },
+            "take": 1,
+        })
+        if r.is_success:
+            data = r.json().get("data", [])
+            if data:
+                return DawisoTermInfo(
+                    object_id=data[0]["objectId"],
+                    name=self._record_name(data[0]),
+                    alt_labels=[],
+                )
+
+        # If no exact business term was found, try matching a synonym object.
+        # Synonyms are stored as separate objects under the term, so we need
+        # to search _OT_SYNONYM objects by name and resolve the parent term.
+        r = client.post("/api/mr-object/filter", json={
+            "filter": {
+                "objectTypeId": _OT_SYNONYM,
+                "spaceId": self._space_id,
+                "applicationId": self._app_id,
+                "objectName": term_name,
+            },
+            "take": 1,
+        })
+        if r.is_success:
+            data = r.json().get("data", [])
+            if data:
+                synonym_record = data[0]
+                parent_id = synonym_record.get("parentObjectId")
+                if parent_id:
+                    return DawisoTermInfo(
+                        object_id=parent_id,
+                        name=synonym_record.get("objectName", ""),
+                        alt_labels=[],
+                    )
+        return None
+
+    def _find_existing_term_id(self, client, domain_id: int, term: "PublishedTerm") -> int | None:
+        et = term.enriched_term
+        if not et.candidate_labels:
+            return None
+
+        seen: set[str] = set()
+        for candidate in [et.preferred_label] + [cl.text for cl in et.candidate_labels]:
+            if not candidate:
+                continue
+            key = candidate.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            existing = self._find_term_with_client(client, domain_id, candidate)
+            if existing:
+                return existing.object_id
+        return None
+
+    def publish_or_update(self, term: "PublishedTerm") -> str | None:
+        return self.publish(term)
 
     def publish(self, term: "PublishedTerm") -> str | None:
         """Publish a term to Dawiso. Returns the Dawiso object URL or None on failure."""
@@ -109,16 +218,7 @@ class DawisoPublisher:
         if not label:
             return None
 
-        # Derive scheme label → Business Domain name
-        # e.g. "http://.../bank/RiskScheme" → "Risk"
-        #      "http://.../bank/Risk"        → "Risk"
-        # FIBO module URIs (FBC, FND, LOAN...) are mapped to ontology scheme names
-        tp = et.taxonomy_placement
-        scheme_label = "OntoBridge"
-        if tp and tp.scheme_uri:
-            seg = tp.scheme_uri.rstrip("/").rsplit("/", 1)[-1]
-            clean = seg.removesuffix("Scheme").removeprefix("Scheme")
-            scheme_label = _FIBO_MODULE_TO_SCHEME.get(clean, clean) or seg or "OntoBridge"
+        scheme_label = self.get_scheme_label(term)
 
         alt_labels = [
             cl.text for cl in et.candidate_labels
@@ -129,13 +229,22 @@ class DawisoPublisher:
             with httpx.Client(
                 base_url=self._base,
                 cookies=self._cookies,
-                headers={"Content-Type": "application/json"},
+                headers=self._headers,
                 timeout=30,
             ) as client:
                 domain_id = self._get_or_create_domain(client, scheme_label)
-                term_id = self._create_term(client, label, definition, domain_id)
-                for alt in alt_labels[:10]:
-                    self._create_synonym(client, alt, term_id)
+                object_id = getattr(et, "dawiso_object_id", None)
+                if object_id is None:
+                    object_id = self._find_existing_term_id(client, domain_id, term)
+
+                action = getattr(et, "dawiso_sync_action", "create")
+                if action == "update" and object_id is not None:
+                    self._update_term(client, object_id, definition, alt_labels)
+                    term_id = object_id
+                else:
+                    term_id = self._create_term(client, label, definition, domain_id)
+                    for alt in alt_labels[:10]:
+                        self._create_synonym(client, alt, term_id)
 
             url = (
                 f"{self._base}/data-governance/space/{self._space_id}/-"
@@ -147,11 +256,6 @@ class DawisoPublisher:
         except Exception as exc:
             logger.warning("Dawiso publish failed for '%s': %s", label, exc)
             return None
-
-    def fire(self, term: "PublishedTerm") -> None:
-        """Publish in a background thread — never blocks the caller."""
-        thread = threading.Thread(target=self.publish, args=(term,), daemon=True)
-        thread.start()
 
     # ------------------------------------------------------------------
     # Domain management
@@ -184,7 +288,7 @@ class DawisoPublisher:
             })
             if r.is_success:
                 for item in r.json().get("data", []):
-                    if item.get("objectName", "").strip().lower() == name.lower():
+                    if self._record_name(item).lower() == name.lower():
                         return item["objectId"]
         except Exception as exc:
             logger.debug("Dawiso domain search failed: %s", exc)
@@ -193,6 +297,54 @@ class DawisoPublisher:
     # ------------------------------------------------------------------
     # Object creation
     # ------------------------------------------------------------------
+
+    def _update_attribute(self, client, object_id: int, attr_type_id: int, text_value: str) -> None:
+        payload = {"textValue": text_value, "value": text_value}
+        r = client.put(f"/api/mr-object/{object_id}/attribute/{attr_type_id}", json=payload)
+        if not r.is_success:
+            print(f"\n[DAWISO UPDATE ERROR] {r.status_code}: {r.text}\n")
+        r.raise_for_status()
+
+    def _find_synonym_with_client(self, client, term_id: int, name: str) -> int | None:
+        try:
+            r = client.post("/api/mr-object/filter", json={
+                "filter": {
+                    "objectTypeId": _OT_SYNONYM,
+                    "parentObjectId": term_id,
+                    "spaceId": self._space_id,
+                    "applicationId": self._app_id,
+                    "objectName": name,
+                },
+                "take": 1,
+            })
+            if r.is_success:
+                data = r.json().get("data", [])
+                if data:
+                    return data[0].get("objectId")
+        except Exception as exc:
+            logger.debug("Dawiso synonym lookup failed for '%s' (term=%d): %s", name, term_id, exc)
+        return None
+
+    def _update_term(self, client, term_id: int, definition: str | None, alt_labels: list[str] | None) -> None:
+        if definition:
+            try:
+                self._update_attribute(client, term_id, _ATTR_DEF, definition)
+            except Exception as exc:
+                print(f"\n[DAWISO UPDATE FAILED] Zlyhala aktualizacia definicie (objectId={term_id}): {exc}\n")
+                logger.warning("Dawiso definition update skipped for objectId=%d: %s", term_id, exc)
+
+        if alt_labels:
+            seen: set[str] = set()
+            for alt in alt_labels:
+                label = alt.strip()
+                if not label:
+                    continue
+                key = label.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                if self._find_synonym_with_client(client, term_id, label) is None:
+                    self._create_synonym(client, label, term_id)
 
     def _create_term(self, client, name: str, definition: str, domain_id: int) -> int:
         attrs = []
@@ -218,13 +370,95 @@ class DawisoPublisher:
             "objectTypeId": object_type_id,
             "name": name,
             "parentObjectId": parent_object_id,  # None = root level (not 0 — 0 causes 404)
+            "objectName": name,
             "spaceId": self._space_id,
             "applicationId": self._app_id,
             "attributes": attributes or [],
         }
+        if parent_object_id is not None:
+            payload["parentObjectId"] = parent_object_id
+            
         r = client.post("/api/mr-object", json=payload)
+        if not r.is_success:
+            print(f"\n[DAWISO API ERROR] Zlyhalo vytvorenie objektu '{name}'.\nHTTP {r.status_code}: {r.text}\n")
         r.raise_for_status()
         return r.json()["objectId"]
+
+
+# ---------------------------------------------------------------------------
+# Dawiso Sync Agent for Pipeline
+# ---------------------------------------------------------------------------
+
+class DawisoSyncAgent:
+    """Agent for checking the catalog state before publishing.
+
+    Maintains a single persistent httpx.Client and a domain-ID cache for the
+    lifetime of the pipeline run so that N terms in the same scheme produce only
+    1 domain lookup and all term-existence checks reuse the same TCP connection.
+    """
+
+    def __init__(self, publisher: DawisoPublisher | None = None):
+        self.publisher = publisher
+        self._domain_cache: dict[str, int | None] = {}
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            import httpx
+            self._client = httpx.Client(
+                base_url=self.publisher._base,
+                headers=self.publisher._headers,
+                cookies=self.publisher._cookies,
+                timeout=30,
+            )
+        return self._client
+
+    def close(self) -> None:
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:
+                pass
+            self._client = None
+
+    def apply(self, term: "EnrichedTerm") -> "EnrichedTerm":
+        if not self.publisher:
+            return term
+        try:
+            client = self._get_client()
+        except Exception:
+            return term
+
+        scheme_label = self.publisher.get_scheme_label(term)
+
+        if scheme_label not in self._domain_cache:
+            try:
+                self._domain_cache[scheme_label] = self.publisher._search_domain(client, scheme_label)
+            except Exception:
+                self._domain_cache[scheme_label] = None
+
+        domain_id = self._domain_cache[scheme_label]
+        term.dawiso_domain_id = domain_id
+        term.dawiso_object_id = None
+        term.dawiso_sync_action = "create"
+        term.dawiso_existing_labels = []
+
+        if domain_id and term.candidate_labels:
+            existing = None
+            for candidate in [term.preferred_label] + [cl.text for cl in term.candidate_labels]:
+                if not candidate:
+                    continue
+                try:
+                    existing = self.publisher._find_term_with_client(client, domain_id, candidate)
+                except Exception:
+                    pass
+                if existing:
+                    break
+            if existing:
+                term.dawiso_object_id = existing.object_id
+                term.dawiso_sync_action = "update"
+                term.dawiso_existing_labels = [existing.name] + existing.alt_labels
+        return term
 
 
 # ---------------------------------------------------------------------------

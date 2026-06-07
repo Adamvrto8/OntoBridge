@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from ontobridge.agents.fibo import FiboIndex, FiboMatcher
@@ -43,3 +44,24 @@ def test_fibo_matcher_returns_none_for_unknown_label(tmp_path):
     matcher = FiboMatcher(index)
 
     assert matcher.match("Retail Customer", None) is None
+
+
+def test_fibo_index_ignores_invalid_xsd_datetime_literal(tmp_path, caplog):
+    graph_path = tmp_path / "sample.ttl"
+    graph_path.write_text(
+        '''
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+        <http://example.org/fibo/Term> a <http://example.org/Concept> ;
+            rdfs:label "Retail Customer" ;
+            rdfs:comment "A customer who uses retail banking services." ;
+            <http://example.org/issuedAt> "2025-6-24T18:00:00"^^xsd:dateTime .
+        ''',
+        encoding="utf-8",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="rdflib.term"):
+        index = FiboIndex.from_paths([graph_path])
+
+    assert "Datatype=http://www.w3.org/2001/XMLSchema#dateTime" not in caplog.text
+    assert index.uri_by_label["retail customer"] == {"http://example.org/fibo/Term"}

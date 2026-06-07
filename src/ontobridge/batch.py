@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -127,6 +129,8 @@ class BatchPipelineRunner:
         fibo_matcher: FiboMatcher | None = None,
         llm_backend=None,
         max_workers: int = 1,
+        dawiso_publisher: object | None = None,
+        synonym_dedup: bool = False,
     ) -> None:
         self._runner = PipelineRunner(
             ontology, publisher,
@@ -135,6 +139,7 @@ class BatchPipelineRunner:
             definition_agent=definition_agent,
             fibo_matcher=fibo_matcher,
             llm_backend=llm_backend,
+            dawiso_publisher=dawiso_publisher,
         )
         self._harvester = harvester or HarvesterAgent()
         self._on_progress = on_progress
@@ -142,10 +147,23 @@ class BatchPipelineRunner:
         # thread pool while dedup/publish stays serial. Default 1 = fully
         # sequential (unchanged behaviour).
         self._max_workers = max(1, max_workers)
+        # Backend used for LLM synonym deduplication (optional). Falls back to
+        # the definition agent's backend so dedup is available whenever an LLM
+        # is configured for the run.
+        self._llm_backend = llm_backend or (
+            definition_agent._backend if definition_agent is not None else None
+        )
+        # LLM synonym deduplication is opt-in (extra O(n²) pre-filtered LLM calls).
+        self._synonym_dedup = synonym_dedup
 
     # ------------------------------------------------------------------
     # Primary API
     # ------------------------------------------------------------------
+
+    def close(self) -> None:
+        """Release any external resources held by the pipeline (e.g. the Dawiso
+        HTTP client). Safe to call even when nothing needs closing."""
+        self._runner.close()
 
     def run_terms(
         self,
@@ -264,7 +282,160 @@ class BatchPipelineRunner:
 
             deduped.append(winner)
 
+        # After FIBO dedup, optionally detect synonyms via the LLM — catches
+        # same-concept terms that differ in wording (which FIBO/label dedup miss).
+        if self._synonym_dedup and self._llm_backend is not None:
+            deduped = self._deduplicate_by_llm(deduped, result)
+
         return deduped
+
+    def _deduplicate_by_llm(
+        self,
+        terms: list[EnrichedTerm],
+        result: BatchResult,
+    ) -> list[EnrichedTerm]:
+        """Ask an LLM whether closely-related extracted terms are synonyms.
+
+        For each anchor term, candidate comparisons (pre-filtered cheaply) are
+        checked in parallel so the O(n²) LLM calls overlap. Confirmed synonyms
+        are folded into a winner; losers go to ``skipped``.
+        """
+        merged: list[EnrichedTerm] = []
+        seen = [False] * len(terms)
+
+        for idx, term in enumerate(terms):
+            if seen[idx] or term.fibo_match is not None:
+                if not seen[idx]:
+                    merged.append(term)
+                continue
+
+            candidates = [
+                (other_idx, terms[other_idx])
+                for other_idx in range(idx + 1, len(terms))
+                if not seen[other_idx]
+                and terms[other_idx].fibo_match is None
+                and self._should_compare_for_synonym(term, terms[other_idx])
+            ]
+
+            cluster = [term]
+            if candidates:
+                n = min(self._max_workers, len(candidates))
+                with ThreadPoolExecutor(max_workers=n) as pool:
+                    pairs = list(pool.map(
+                        lambda co: (co[0], self._llm_confirms_synonym(term, co[1])),
+                        candidates,
+                    ))
+                for other_idx, is_synonym in pairs:
+                    if is_synonym and not seen[other_idx]:
+                        cluster.append(terms[other_idx])
+                        seen[other_idx] = True
+
+            if len(cluster) == 1:
+                merged.append(term)
+                continue
+
+            cluster.sort(key=lambda t: (
+                -max((c.confidence for c in t.candidate_labels), default=0.0),
+                -len(t.candidate_labels),
+                -len(t.definition or ""),
+            ))
+            winner, *losers = cluster
+            existing = {c.text.lower() for c in winner.candidate_labels}
+            for loser in losers:
+                for lbl in loser.candidate_labels:
+                    if lbl.text.lower() not in existing:
+                        winner.candidate_labels.append(
+                            CandidateLabel(
+                                text=lbl.text,
+                                confidence=lbl.confidence * 0.8,
+                                ner_label=lbl.ner_label,
+                            )
+                        )
+                        existing.add(lbl.text.lower())
+                result.skipped.append((
+                    loser,
+                    f"merged into '{winner.preferred_label}' (synonym judged by LLM)",
+                ))
+            merged.append(winner)
+
+        return merged
+
+    @staticmethod
+    def _normalize_label(text: str | None) -> str:
+        if not text:
+            return ""
+        return " ".join(text.lower().strip().split())
+
+    @staticmethod
+    def _label_similarity(a: str | None, b: str | None) -> float:
+        return SequenceMatcher(
+            None,
+            BatchPipelineRunner._normalize_label(a),
+            BatchPipelineRunner._normalize_label(b),
+        ).ratio()
+
+    @staticmethod
+    def _is_acronym_pair(a: str | None, b: str | None) -> bool:
+        if not a or not b:
+            return False
+        short, long = (a, b) if len(a) < len(b) else (b, a)
+        if len(short) < 2 or len(short) > 6 or not short.isupper():
+            return False
+        initials = "".join(part[0] for part in long.split() if part)
+        return initials.upper().startswith(short.upper())
+
+    def _should_compare_for_synonym(self, term: EnrichedTerm, other: EnrichedTerm) -> bool:
+        label_score = self._label_similarity(term.preferred_label, other.preferred_label)
+        definition_score = self._label_similarity(term.definition, other.definition)
+        if label_score >= 0.65 or definition_score >= 0.60:
+            return True
+        if self._is_acronym_pair(term.preferred_label, other.preferred_label):
+            return True
+        if self._shared_significant_tokens(term.definition, other.definition) >= 2:
+            return True
+        return False
+
+    @staticmethod
+    def _shared_significant_tokens(a: str | None, b: str | None) -> int:
+        if not a or not b:
+            return 0
+        stop_words = {
+            "the", "and", "for", "with", "from", "that", "which",
+            "this", "these", "those", "their", "there", "were",
+            "when", "where", "what", "why", "how", "are", "is",
+            "a", "an", "of", "in", "on", "to", "by", "as", "or",
+        }
+        tokens_a = {
+            token for token in re.split(r"\W+", a.lower())
+            if token and len(token) > 2 and token not in stop_words
+        }
+        tokens_b = {
+            token for token in re.split(r"\W+", b.lower())
+            if token and len(token) > 2 and token not in stop_words
+        }
+        return len(tokens_a & tokens_b)
+
+    def _llm_confirms_synonym(self, term: EnrichedTerm, other: EnrichedTerm) -> bool:
+        system = (
+            "You are a financial glossary assistant. "
+            "Decide whether the following two business terms refer to the same concept. "
+            "Answer only YES or NO."
+        )
+        user = (
+            f"Term A: {term.preferred_label or '(unknown)'}\n"
+            f"Definition A: {term.definition or '(none)'}\n\n"
+            f"Term B: {other.preferred_label or '(unknown)'}\n"
+            f"Definition B: {other.definition or '(none)'}\n\n"
+            "In a banking glossary, should these be treated as synonyms and merged "
+            "into a single canonical term? Answer YES if they are synonyms, otherwise NO."
+        )
+        try:
+            response = self._llm_backend.complete(system=system, user=user)
+        except Exception:
+            return False
+        if not response:
+            return False
+        return response.strip().lower().startswith("yes")
 
     def _process_one(
         self,

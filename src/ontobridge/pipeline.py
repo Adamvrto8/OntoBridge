@@ -18,6 +18,7 @@ from ontobridge.agents.policy_linker import PolicyLinkerAgent, TFIDFPolicyLinker
 from ontobridge.agents.relations import RelationsAgent
 from ontobridge.agents.taxonomy import TaxonomyAgent
 from ontobridge.agents.writer import WriterAgent
+from ontobridge.integrations.dawiso import DawisoPublisher, DawisoSyncAgent
 from ontobridge.models.enrichment import CandidateLabel, EnrichedTerm
 from ontobridge.models.enums import LifecycleStatus, MatchType, RelationStatus
 from ontobridge.models.published import PublishedTerm
@@ -77,6 +78,7 @@ class PipelineRunner:
         definition_agent: LLMDefinitionAgent | None = None,
         fibo_matcher: FiboMatcher | None = None,
         llm_backend=None,
+        dawiso_publisher: DawisoPublisher | None = None,
     ):
         cfg = config or PipelineConfig(encoder=encoder)
 
@@ -86,6 +88,9 @@ class PipelineRunner:
         self.policy_linker = policy_linker
         self.definition_agent = definition_agent
         self.fibo_matcher = fibo_matcher
+        self.dawiso_sync_agent = (
+            DawisoSyncAgent(dawiso_publisher) if dawiso_publisher is not None else None
+        )
 
         # Use TF-IDF encoder when none is explicitly provided.
         # Built from the ontology corpus so common tokens (the, of, a) get
@@ -137,6 +142,11 @@ class PipelineRunner:
             bank_namespace=cfg.bank_namespace,
             rel_namespace=cfg.rel_namespace,
         )
+
+    def close(self) -> None:
+        """Release external resources (e.g. the Dawiso HTTP client)."""
+        if self.dawiso_sync_agent is not None:
+            self.dawiso_sync_agent.close()
 
     def run(
         self,
@@ -215,6 +225,8 @@ class PipelineRunner:
         writes the term (plus the parent's narrower back-link).
         """
         self._resolve_relation_objects(term)
+        if self.dawiso_sync_agent is not None:
+            self.dawiso_sync_agent.apply(term)
         candidate = self._term_to_candidate(term)
         term.governance_result = self.governance.evaluate(candidate)
         return self.writer.publish(term, term_uri=term_uri, approved_by=approved_by)

@@ -149,6 +149,10 @@ class EnrichedTerm:
     business_rules: list[BusinessRule] = field(default_factory=list)
     relations: list[SemanticRelation] = field(default_factory=list)
     fibo_match: FIBOMatch | None = None
+    dawiso_object_id: int | None = None
+    dawiso_domain_id: int | None = None
+    dawiso_existing_labels: list[str] = field(default_factory=list)
+    dawiso_sync_action: str | None = None
     governance_result: "GovResult | None" = None
 
     @classmethod

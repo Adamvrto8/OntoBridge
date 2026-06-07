@@ -4,14 +4,15 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from ontobridge.api.deps import AuditDep, FiboMatcherDep, OntologyDep, PublisherDep
-from ontobridge.api.schemas import PipelineRunResponse, TermSummary
+from ontobridge.api.schemas import PipelineRunResponse, SkippedTermOut, TermSummary
 from ontobridge.agents.fibo import FiboIndex, FiboMatcher
 from ontobridge.agents.harvester.agent import HarvesterAgent
-from ontobridge.batch import BatchPipelineRunner
+from ontobridge.batch import BatchPipelineRunner, BatchResult
+from ontobridge.integrations.dawiso import get_publisher
 from ontobridge.pipeline_config import PipelineConfig
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -95,7 +96,7 @@ async def run_pipeline(
     ontology: OntologyDep,
     audit: AuditDep,
     fibo_matcher: FiboMatcherDep,
-    file: UploadFile,
+    files: list[UploadFile] = File(...),
     source_system: str = Form(default="upload"),
     approved_by: str = Form(default=""),
     use_llm_ner: bool = Form(default=False),
@@ -105,12 +106,14 @@ async def run_pipeline(
     llm_model: str = Form(default="gemma4:26b"),
     llm_api_key: str = Form(default=""),
 ):
+    if not files:
+        raise HTTPException(status_code=422, detail="No files uploaded.")
+
     api_key = llm_api_key.strip() or None
 
     # Build a single LLM backend if any LLM feature needs one, and reuse it for
-    # extraction, definitions, and relations. This decouples LLM relation
-    # extraction from the "improve definitions" toggle: relations use the LLM
-    # whenever an LLM is configured for the run (NER, definitions, or relations).
+    # extraction, definitions, relations, and synonym dedup. This decouples LLM
+    # relation extraction from the "improve definitions" toggle.
     backend = None
     if use_llm_ner or use_llm_def or use_llm_rel:
         try:
@@ -142,23 +145,32 @@ async def run_pipeline(
     # pure pattern-only run builds no backend, so relations stay on SVO.
     rel_backend = backend
 
-    suffix = Path(file.filename or "upload.txt").suffix
-    content = await file.read()
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(content)
-        tmp_path = Path(tmp.name)
+    # Persist every uploaded document to a temp file (multi-file upload).
+    tmp_paths: list[tuple[Path, str]] = []
+    for upload in files:
+        suffix = Path(upload.filename or "upload.txt").suffix
+        content = await upload.read()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content)
+            tmp_paths.append((Path(tmp.name), upload.filename or "upload.txt"))
 
     try:
         from ontobridge.agents.policy_linker import TFIDFPolicyLinker
         policy_linker = TFIDFPolicyLinker(threshold=0.30, top_k=3)
-        try:
-            policy_linker.index_document(tmp_path, document_ref=file.filename)
-        except Exception:
+        any_indexed = False
+        for tmp_path, filename in tmp_paths:
+            try:
+                policy_linker.index_document(tmp_path, document_ref=filename)
+                any_indexed = True
+            except Exception:
+                pass
+        if not any_indexed:
             policy_linker = None  # indexing failed — proceed without linker
 
         encoder = build_encoder()
         config = PipelineConfig(encoder=encoder) if encoder is not None else None
+        dawiso_publisher = get_publisher()  # None unless DAWISO_* env vars set
+
         # Parallelise per-term LLM enrichment when an LLM is in play (calls are
         # network-bound). Pure pattern runs stay sequential — threads wouldn't
         # help CPU-bound work. Tunable via ONTOBRIDGE_PIPELINE_WORKERS.
@@ -169,6 +181,7 @@ async def run_pipeline(
                 workers = 8
         else:
             workers = 1
+
         runner = BatchPipelineRunner(
             ontology=ontology,
             publisher=publisher,
@@ -179,22 +192,42 @@ async def run_pipeline(
             policy_linker=policy_linker,
             llm_backend=rel_backend,
             max_workers=workers,
+            dawiso_publisher=dawiso_publisher,
+            # Synonym dedup rides with "improve definitions" (matches the UI).
+            synonym_dedup=use_llm_def,
         )
-        # Run the (blocking, LLM-heavy) pipeline in a worker thread so it does
-        # not block uvicorn's event loop. On Windows a blocked loop fails to
-        # accept new connections (WinError 64), which surfaces to the browser as
-        # a 502 even though the run succeeds.
-        result = await run_in_threadpool(
-            runner.run_document,
-            tmp_path,
-            source_system=source_system or "upload",
-            document_id=file.filename,
-            approved_by=approved_by.strip() or None,
-        )
+
+        def _run_all() -> BatchResult:
+            # Process every document, aggregating all buckets. Run in a worker
+            # thread (below) so the LLM-heavy work never blocks uvicorn's event
+            # loop — a blocked loop on Windows drops connections (WinError 64)
+            # and surfaces as a 502 even though the run succeeds.
+            agg = BatchResult()
+            try:
+                for path, filename in tmp_paths:
+                    partial = runner.run_document(
+                        path,
+                        source_system=source_system or "upload",
+                        document_id=filename,
+                        approved_by=approved_by.strip() or None,
+                    )
+                    agg.published.extend(partial.published)
+                    agg.merged.extend(partial.merged)
+                    agg.drifted.extend(partial.drifted)
+                    agg.skipped.extend(partial.skipped)
+                    agg.failed.extend(partial.failed)
+            finally:
+                runner.close()
+            return agg
+
+        result = await run_in_threadpool(_run_all)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"{type(e).__name__}: {e}")
     finally:
-        tmp_path.unlink(missing_ok=True)
+        for tmp_path, _ in tmp_paths:
+            tmp_path.unlink(missing_ok=True)
 
     return PipelineRunResponse(
         published=len(result.published),
@@ -205,5 +238,9 @@ async def run_pipeline(
         terms=[
             TermSummary.from_published(t)
             for t in (result.published + result.drifted)
+        ],
+        skipped_details=[
+            SkippedTermOut(label=(t.preferred_label or "(unlabelled)"), reason=reason)
+            for t, reason in result.skipped
         ],
     )

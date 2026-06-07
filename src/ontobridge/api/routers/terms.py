@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
 import io
 
@@ -224,6 +224,7 @@ def transition_status(
     body: StatusTransitionRequest,
     publisher: PublisherDep,
     audit: AuditDep,
+    background_tasks: BackgroundTasks,
 ):
     try:
         term = publisher.get_term(term_id)
@@ -269,7 +270,7 @@ def transition_status(
     if new_status is LifecycleStatus.PUBLISHED:
         dawiso = dawiso_integration.get_publisher()
         if dawiso:
-            dawiso.fire(updated)
+            background_tasks.add_task(dawiso.publish, updated)
 
     return TermSummary.from_published(updated)
 

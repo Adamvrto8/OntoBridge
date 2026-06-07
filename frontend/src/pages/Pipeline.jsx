@@ -5,6 +5,8 @@ import { api } from '../api/client'
 export default function Pipeline() {
   const navigate = useNavigate()
   const [file,       setFile]       = useState(null)
+  const [uploadMode, setUploadMode] = useState('single')
+  const [files,      setFiles]      = useState([])
   const [sourceSystem, setSourceSystem] = useState('upload')
   const [approvedBy, setApprovedBy] = useState('')
   const [useLlmNer,  setUseLlmNer]  = useState(false)
@@ -18,11 +20,17 @@ export default function Pipeline() {
   const inputRef = useRef()
   const showLlm = useLlmNer || useLlmDef
 
+  const hasFiles = uploadMode === 'single' ? !!file : files.length > 0
+
   const run = async () => {
-    if (!file) return
+    if (!hasFiles) return
     setLoading(true); setError(null); setResult(null)
     const fd = new FormData()
-    fd.append('file', file)
+    if (uploadMode === 'single') {
+      fd.append('files', file)
+    } else {
+      for (const f of files) fd.append('files', f)
+    }
     fd.append('source_system', sourceSystem)
     fd.append('approved_by', approvedBy)
     fd.append('use_llm_ner', useLlmNer)
@@ -46,30 +54,61 @@ export default function Pipeline() {
 
       <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
 
+        {/* Upload mode toggle */}
+        <div style={{ display: 'flex', gap: 20 }}>
+          <Radio label="Single file"    value="single" current={uploadMode}
+            onChange={mode => { setUploadMode(mode); setFile(null); setFiles([]) }} />
+          <Radio label="Multiple files" value="multi"  current={uploadMode}
+            onChange={mode => { setUploadMode(mode); setFile(null); setFiles([]) }} />
+        </div>
+
         {/* File drop zone */}
         <div
           className="card"
           onClick={() => inputRef.current?.click()}
           style={{
             padding: '32px 24px', textAlign: 'center', cursor: 'pointer',
-            border: `2px dashed ${file ? 'var(--green)' : 'var(--ice)'}`,
-            background: file ? 'var(--green-bg)' : 'var(--surface)',
+            border: `2px dashed ${hasFiles ? 'var(--green)' : 'var(--ice)'}`,
+            background: hasFiles ? 'var(--green-bg)' : 'var(--surface)',
             transition: 'border-color .15s, background .15s',
           }}
-          onMouseEnter={e => { if (!file) e.currentTarget.style.borderColor = 'var(--slate-d)' }}
-          onMouseLeave={e => { if (!file) e.currentTarget.style.borderColor = 'var(--ice)' }}
+          onMouseEnter={e => { if (!hasFiles) e.currentTarget.style.borderColor = 'var(--slate-d)' }}
+          onMouseLeave={e => { if (!hasFiles) e.currentTarget.style.borderColor = 'var(--ice)' }}
         >
-          <UploadIcon color={file ? 'var(--green)' : 'var(--ink-3)'} />
-          {file ? (
-            <p style={{ marginTop: 8, fontWeight: 500, color: 'var(--green)' }}>{file.name}</p>
+          <UploadIcon color={hasFiles ? 'var(--green)' : 'var(--ink-3)'} />
+          {hasFiles ? (
+            uploadMode === 'single' ? (
+              <p style={{ marginTop: 8, fontWeight: 500, color: 'var(--green)' }}>{file.name}</p>
+            ) : (
+              <div style={{ marginTop: 8 }}>
+                <p style={{ fontWeight: 500, color: 'var(--green)' }}>
+                  {files.length} file{files.length !== 1 ? 's' : ''} selected
+                </p>
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {files.map((f, i) => (
+                    <span key={i} className="mono" style={{ color: 'var(--green)', fontSize: 11 }}>{f.name}</span>
+                  ))}
+                </div>
+              </div>
+            )
           ) : (
             <>
               <p style={{ marginTop: 8, fontWeight: 500, color: 'var(--ink)' }}>Click to upload</p>
               <p className="mono" style={{ color: 'var(--ink-3)', marginTop: 4 }}>TXT · PDF · DOCX · CSV</p>
             </>
           )}
-          <input ref={inputRef} type="file" accept=".txt,.pdf,.docx,.csv" style={{ display: 'none' }}
-            onChange={e => setFile(e.target.files[0])} />
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".txt,.pdf,.docx,.csv"
+            style={{ display: 'none' }}
+            multiple={uploadMode === 'multi'}
+            onChange={e => {
+              if (uploadMode === 'single') setFile(e.target.files[0] || null)
+              else setFiles(Array.from(e.target.files))
+              e.target.value = ''
+            }}
+          />
         </div>
 
         {/* Fields */}
@@ -85,6 +124,9 @@ export default function Pipeline() {
             <div style={{ display: 'flex', gap: 24 }}>
               <Toggle label="Use LLM extractor"  value={useLlmNer} onChange={setUseLlmNer} />
               <Toggle label="Improve definitions" value={useLlmDef} onChange={setUseLlmDef} />
+            </div>
+            <div style={{ color: 'var(--ink-3)', fontSize: 12, lineHeight: 1.5, marginTop: 6 }}>
+              When enabled, the selected LLM backend also helps the pipeline decide whether closely related extracted terms are synonyms and should be merged.
             </div>
             {showLlm && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
@@ -124,8 +166,8 @@ export default function Pipeline() {
         <button
           className="btn primary"
           onClick={run}
-          disabled={!file || loading}
-          style={{ height: 36, width: '100%', justifyContent: 'center', opacity: (!file || loading) ? 0.5 : 1 }}
+          disabled={!hasFiles || loading}
+          style={{ height: 36, width: '100%', justifyContent: 'center', opacity: (!hasFiles || loading) ? 0.5 : 1 }}
         >
           {loading ? 'Running…' : 'Run Pipeline'}
         </button>
@@ -143,6 +185,24 @@ export default function Pipeline() {
               <ResultCard label="Skipped"   value={result.skipped}   color="var(--amber)" bg="var(--amber-bg)" />
               <ResultCard label="Failed"    value={result.failed}    color="var(--red)"   bg="var(--red-bg)" />
             </div>
+            {result.skipped_details && result.skipped_details.length > 0 && (
+              <div className="card">
+                <div className="card-h"><h3>Skipped details</h3><span className="meta mono">{result.skipped_details.length} total</span></div>
+                <table className="issues">
+                  <thead><tr><th>Term</th><th>Reason</th></tr></thead>
+                  <tbody>
+                    {result.skipped_details.map((item, index) => (
+                      <tr key={`${item.label}-${index}`}>
+                        <td>
+                          <div style={{ fontWeight: 500 }}>{item.label}</div>
+                        </td>
+                        <td style={{ color: 'var(--ink-3)' }}>{item.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {result.terms.length > 0 && (
               <div className="card">
                 <div className="card-h"><h3>Extracted terms</h3><span className="meta mono">{result.terms.length} total</span></div>

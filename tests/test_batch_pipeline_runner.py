@@ -424,3 +424,63 @@ class TestConcurrentPath:
         # 4 terms x (def + relations) slow calls: concurrency should be well under
         # the sequential wall-clock.
         assert concurrent < sequential * 0.6
+
+
+# ---------------------------------------------------------------------------
+# LLM synonym deduplication (opt-in via synonym_dedup=True)
+# ---------------------------------------------------------------------------
+
+def test_llm_synonym_dedup_merges_terms(base_ontology):
+    class FakeYesBackend:
+        def complete(self, system: str, user: str) -> str:
+            return "YES"
+
+    term_a = _make_term(
+        "Mortgage Insurance Premium",
+        definition=(
+            "The insurance premium paid by a borrower to protect the lender "
+            "against default on a mortgage loan."
+        ),
+        section="4.7",
+    )
+    term_b = _make_term(
+        "PMI",
+        definition=(
+            "Private mortgage insurance charged to the borrower for protection "
+            "against mortgage default."
+        ),
+        section="4.8",
+    )
+    pub = InMemoryPublisher()
+    runner = BatchPipelineRunner(
+        base_ontology, pub, llm_backend=FakeYesBackend(), synonym_dedup=True
+    )
+    result = runner.run_terms([term_a, term_b])
+
+    assert len(result.published) == 1
+    assert len(result.skipped) == 1
+    assert "synonym judged by LLM" in result.skipped[0][1]
+    labels = [p.enriched_term.preferred_label for p in result.published]
+    assert "Mortgage Insurance Premium" in labels
+
+
+def test_synonym_dedup_off_by_default(base_ontology):
+    """Without the opt-in flag, synonym dedup does not run even with a backend."""
+    class FakeYesBackend:
+        def complete(self, system: str, user: str) -> str:
+            return "YES"
+
+    term_a = _make_term("Mortgage Insurance Premium", section="4.7")
+    term_b = _make_term(
+        "PMI",
+        definition=(
+            "Private mortgage insurance charged to the borrower for protection "
+            "against mortgage default."
+        ),
+        section="4.8",
+    )
+    runner = BatchPipelineRunner(
+        base_ontology, InMemoryPublisher(), llm_backend=FakeYesBackend()
+    )
+    result = runner.run_terms([term_a, term_b])
+    assert len(result.published) == 2

@@ -1,19 +1,25 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
 from rdflib import Graph, RDFS, SKOS, OWL, RDF, URIRef as _URIRef
-from rdflib.term import URIRef, BNode
+from rdflib.namespace import XSD
+from rdflib.term import URIRef, BNode, _toPythonMapping
 
-# FIBO source files ship a handful of non-ISO dateTime literals (unpadded
-# months/days, e.g. "2025-10-6T18:00:00"). rdflib logs a warning + traceback
-# for each one while parsing. They are harmless — the value resolves to None and
-# the pipeline never reads FIBO dates — so quiet that specific logger to keep
-# startup output clean.
-logging.getLogger("rdflib.term").setLevel(logging.ERROR)
+# rdflib 7.6+ logs warnings when malformed xsd:dateTime literals are encountered.
+# FIBO data may contain invalid lexical forms like "2025-6-24T18:00:00".
+# Wrap the converter so invalid literals are ignored silently during ontology loading.
+_original_xsd_datetime_converter = _toPythonMapping.get(XSD.dateTime)
+if _original_xsd_datetime_converter is not None:
+    def _safe_xsd_datetime_converter(lexical):
+        try:
+            return _original_xsd_datetime_converter(lexical)
+        except Exception:
+            return None
+
+    _toPythonMapping[XSD.dateTime] = _safe_xsd_datetime_converter
 
 _CMNS_AV = "https://www.omg.org/spec/Commons/AnnotationVocabulary/"
 CMNS_SYNONYM      = _URIRef(_CMNS_AV + "synonym")

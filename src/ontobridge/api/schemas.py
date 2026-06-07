@@ -18,6 +18,22 @@ class PagedResponse(BaseModel, Generic[T]):
 _SEV_ORDER = {"block": 0, "warn": 1, "info": 2}
 _ACTION_TO_SEVERITY = {"block": "crit", "draft": "high", "review": "med", "publish": "low"}
 
+# Map FIBO module codes (used as the scheme URI for FIBO-anchored terms) to
+# readable domain names so the UI shows "Compliance" instead of "FBC".
+_FIBO_MODULE_TO_SCHEME: dict[str, str] = {
+    "FBC": "Compliance",
+    "FND": "Organisation",
+    "LOAN": "Product",
+    "SEC": "Product",
+    "BE":  "Organisation",
+    "IND": "Risk",
+    "DER": "Product",
+    "BP":  "Process",
+    "CAE": "Process",
+    "MD":  "Risk",
+    "ACTUS": "Product",
+}
+
 
 class TermSummary(BaseModel):
     term_uri: str
@@ -209,6 +225,11 @@ class RelationActionRequest(BaseModel):
     action: str  # "approve" | "reject"
 
 
+class SkippedTermOut(BaseModel):
+    label: str
+    reason: str
+
+
 class PipelineRunResponse(BaseModel):
     published: int
     merged: int = 0
@@ -216,6 +237,7 @@ class PipelineRunResponse(BaseModel):
     skipped: int
     failed: int
     terms: list[TermSummary]
+    skipped_details: list[SkippedTermOut] = []
 
 
 class AuditEntryOut(BaseModel):
@@ -284,6 +306,9 @@ def _resolve_scheme_label(scheme_uri: str | None, ontology) -> str | None:
         if label:
             return label.split("@")[0].strip()  # strip lang tag if present
     seg = _last_segment(scheme_uri) or ""
+    mapped = _FIBO_MODULE_TO_SCHEME.get(seg)
+    if mapped:
+        return mapped
     return seg.removeprefix("Scheme") or seg or None
 
 
