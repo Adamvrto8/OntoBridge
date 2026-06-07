@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from ontobridge.api.deps import AuditDep, FiboMatcherDep, OntologyDep, PublisherDep
 from ontobridge.api.schemas import PipelineRunResponse, TermSummary
@@ -168,7 +169,12 @@ async def run_pipeline(
             policy_linker=policy_linker,
             llm_backend=rel_backend,
         )
-        result = runner.run_document(
+        # Run the (blocking, LLM-heavy) pipeline in a worker thread so it does
+        # not block uvicorn's event loop. On Windows a blocked loop fails to
+        # accept new connections (WinError 64), which surfaces to the browser as
+        # a 502 even though the run succeeds.
+        result = await run_in_threadpool(
+            runner.run_document,
             tmp_path,
             source_system=source_system or "upload",
             document_id=file.filename,
