@@ -166,6 +166,14 @@ bank:SMECustomer
     skos:altLabel "Small business customer"@en ;
     skos:definition "A small or medium-sized enterprise customer served through the corporate banking channel."@en .
 
+bank:CustomerProfile
+    a skos:Concept ;
+    skos:inScheme bank:SchemeParty ;
+    skos:broader bank:Customer ;
+    skos:prefLabel "Customer profile"@en ;
+    skos:altLabel "Client profile"@en, "Customer information"@en, "Client information"@en ;
+    skos:definition "The compiled set of identification, financial, employment, and behavioural information a bank holds about a customer."@en .
+
 
 # ==========================================================================
 # SCHEME 2: FINANCIAL PRODUCT
@@ -256,6 +264,22 @@ bank:ApplicationProcess
     skos:broader bank:Process ;
     skos:prefLabel "Application process"@en ;
     skos:definition "The end-to-end process through which a customer applies for a financial product."@en .
+
+bank:Transaction
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:Process ;
+    skos:prefLabel "Transaction"@en ;
+    skos:altLabel "Banking transaction"@en, "Financial transaction"@en ;
+    skos:definition "A discrete movement of funds or value recorded on a customer account, such as a deposit, withdrawal, payment, or transfer."@en .
+
+bank:CashTransaction
+    a skos:Concept ;
+    skos:inScheme bank:SchemeProcess ;
+    skos:broader bank:Transaction ;
+    skos:prefLabel "Cash transaction"@en ;
+    skos:altLabel "Cash deposit"@en, "Cash withdrawal"@en ;
+    skos:definition "A transaction conducted in physical currency, subject to source-of-funds and threshold reporting controls."@en .
 
 bank:VerificationProcess
     a skos:Concept ;
@@ -1115,6 +1139,40 @@ bank:InternalControl
     skos:prefLabel "Internal control"@en ;
     skos:altLabel "Control"@en, "Control framework"@en, "Control mechanism"@en ;
     skos:definition "A policy, procedure, or system designed to prevent errors, fraud, or regulatory breaches in banking operations."@en .
+
+# --- Financial crime grouping (AML / CFT) ---
+
+bank:FinancialCrime
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:Regulation ;
+    skos:prefLabel "Financial crime"@en ;
+    skos:altLabel "Financial crime risk"@en, "AML/CFT"@en ;
+    skos:definition "Criminal conduct involving money or financial services — including money laundering, terrorist financing, fraud, and sanctions evasion — that banks are obliged to prevent, detect, and report."@en .
+
+bank:MoneyLaundering
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:FinancialCrime ;
+    skos:prefLabel "Money laundering"@en ;
+    skos:altLabel "Legitimisation of proceeds of crime"@en, "Proceeds of crime"@en, "ML"@en ;
+    skos:definition "The process of disguising the origins of illegally obtained money so that it appears to derive from a legitimate source."@en .
+
+bank:TerroristFinancing
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:FinancialCrime ;
+    skos:prefLabel "Terrorist financing"@en ;
+    skos:altLabel "Financing of terrorism"@en, "Terrorism financing"@en, "CFT"@en ;
+    skos:definition "The provision or collection of funds intended to be used to carry out terrorist acts, which banks must detect and report."@en .
+
+bank:SourceOfFunds
+    a skos:Concept ;
+    skos:inScheme bank:SchemeCompliance ;
+    skos:broader bank:FinancialCrime ;
+    skos:prefLabel "Source of funds"@en ;
+    skos:altLabel "Origin of funds"@en, "SoF"@en ;
+    skos:definition "The origin of the money used in a transaction or relationship, which a bank verifies as part of anti-money-laundering due diligence."@en .
 
 
 # --------------------------------------------------------------------------

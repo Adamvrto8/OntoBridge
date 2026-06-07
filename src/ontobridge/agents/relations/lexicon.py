@@ -31,13 +31,16 @@ class LexiconLookup:
 
 def _verb_forms(label: str) -> set[str]:
     """Generate a small set of surface forms for a verb label.
-    e.g. 'holds' -> {'holds', 'hold'}, 'held by' -> {'held by', 'is held by'}.
+    e.g. 'holds' -> {'holds', 'hold'}, 'verifies' -> {'verifies', 'verify'},
+    'held by' -> {'held by', 'is held by'}.
     """
     base = label.casefold().strip()
     forms: set[str] = {base}
-    # strip trailing -s for present singular -> infinitive (holds -> hold)
-    if base.endswith("s") and not base.endswith("ss") and len(base) > 2:
-        forms.add(base[:-1])
+    # third-person singular -> infinitive
+    if base.endswith("ies") and len(base) > 3:
+        forms.add(base[:-3] + "y")  # verifies -> verify, classifies -> classify
+    elif base.endswith("s") and not base.endswith("ss") and len(base) > 2:
+        forms.add(base[:-1])        # holds -> hold
     # for inverse 'X by' forms, also add 'is X by'
     if base.endswith(" by"):
         forms.add(f"is {base}")

@@ -11,8 +11,38 @@ from ontobridge.api.schemas import PipelineRunResponse, TermSummary
 from ontobridge.agents.fibo import FiboIndex, FiboMatcher
 from ontobridge.agents.harvester.agent import HarvesterAgent
 from ontobridge.batch import BatchPipelineRunner
+from ontobridge.pipeline_config import PipelineConfig
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
+
+
+_ENCODER_NOT_LOADED = object()
+_encoder_cache: object = _ENCODER_NOT_LOADED
+
+
+def build_encoder():
+    """Shared dense encoder for mapping + taxonomy, cached across requests so the
+    model loads once and concept embeddings stay warm.
+
+    Sentence-transformer embeddings give far better taxonomy placement and
+    dedup than the TF-IDF fallback. Returns ``None`` (TF-IDF fallback) when
+    sentence-transformers is not installed or is disabled via
+    ``ONTOBRIDGE_EMBEDDINGS=0``.
+    """
+    global _encoder_cache
+    if _encoder_cache is not _ENCODER_NOT_LOADED:
+        return _encoder_cache
+    if os.environ.get("ONTOBRIDGE_EMBEDDINGS", "1").lower() in {"0", "false", "no"}:
+        _encoder_cache = None
+        return None
+    try:
+        from ontobridge.encoders.sentence_transformer import SentenceTransformerEncoder
+        enc = SentenceTransformerEncoder()
+        enc.encode("warm up")  # load the model now so import errors surface early
+        _encoder_cache = enc
+    except Exception:
+        _encoder_cache = None
+    return _encoder_cache
 
 
 def _build_backend(backend: str, model: str, api_key: str | None = None):
@@ -108,9 +138,12 @@ async def run_pipeline(
         except Exception:
             policy_linker = None  # indexing failed — proceed without linker
 
+        encoder = build_encoder()
+        config = PipelineConfig(encoder=encoder) if encoder is not None else None
         runner = BatchPipelineRunner(
             ontology=ontology,
             publisher=publisher,
+            config=config,
             harvester=harvester,
             definition_agent=definition_agent,
             fibo_matcher=fibo_matcher,

@@ -10,7 +10,7 @@ The primary interface is the **React web app** — FastAPI backend + Vite/React 
 OntoBridge governs terms across three layers, from universal to company-specific:
 
 1. **FIBO** — the EDM Council's industry-standard financial ontology (~16k classes). Universal semantic anchor; bundled, never edited.
-2. **OntoBridge baseline** — `ontology/ontobridge_ontology_v0.1.ttl`, a retail-banking *reference skeleton* (103 concepts, 10 schemes, 20 relation pairs). The default starting point.
+2. **OntoBridge baseline** — `ontology/ontobridge_ontology_v0.1.ttl`, a retail-banking *reference skeleton* (110 concepts, 10 schemes, 20 relation pairs). The default starting point.
 3. **Bank-specific ontology** — a deploying bank supplies its **own** SKOS/OWL schema (its schemes, its product names, its relations) via the `ONTOLOGY_PATH` environment variable. See [Bring your own ontology](#bring-your-own-ontology). `ontology/sample_bank_acme.ttl` is a worked example.
 
 ### Deployment
@@ -91,6 +91,8 @@ python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
 ```
 On startup the server prints a one-line summary of what it loaded, e.g.
 `Ontology loaded from ontology/sample_bank_acme.ttl: 18 concepts, 5 schemes, 6 relation pairs.`
+
+**Semantic placement** is on by default when `sentence-transformers` is installed — it gives markedly better taxonomy placement and deduplication than the lexical fallback. Disable with `ONTOBRIDGE_EMBEDDINGS=0` to force the TF-IDF path (faster startup, no model download).
 
 > **Do not use `--reload`** — FIBO ontology indexing takes 1–3 minutes at startup; `--reload` would re-index on every code change.
 
@@ -524,7 +526,7 @@ Every term detail page exposes inline editing:
 |---|---|
 | **Definition** | Click Edit → textarea → Save |
 | **Also known as** | Add alt labels (type + Enter), remove with × |
-| **Taxonomy** | Override → searchable list of 103 ontology concepts → pick broader concept |
+| **Taxonomy** | Override → searchable list of ontology concepts → pick broader concept |
 | **Semantic relations** | Edit → × remove, add new (verb autocomplete + object label) |
 
 All edits are recorded in the Audit Log with steward name and timestamp.
@@ -556,7 +558,7 @@ ontobridge/
 │       ├── pages/           # Inbox, Glossary, TermDetail, Pipeline, ...
 │       └── components/      # Sidebar, TopBar, shared components
 ├── ontology/
-│   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (103 concepts, 10 schemes)
+│   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (110 concepts, 10 schemes)
 ├── tests/                   # 658 tests (~65 need optional NLP/embedding packages)
 ├── mcp_server.py            # MCP server (fastmcp, STDIO/SSE)
 ├── api_server.py            # FastAPI entry point

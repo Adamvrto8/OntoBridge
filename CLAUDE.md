@@ -343,12 +343,14 @@ Both accept `approved_by` in `transition_status()`. Transitioning to PUBLISHED r
 | `actor` | `str` | Steward name recorded in audit log |
 
 Supporting read endpoints:
-- `GET /api/stats/concepts` — all 103 ontology concepts with scheme label (for taxonomy dropdown)
+- `GET /api/stats/concepts` — all ontology concepts with scheme label (for taxonomy dropdown)
 - `GET /api/stats/verbs` — known verb labels from OWL ObjectProperties (for relation add autocomplete)
 
 ### Ontology
 
-`ontology/ontobridge_ontology_v0.1.ttl` — 103 concepts across 10 schemes (v0.3).
+`ontology/ontobridge_ontology_v0.1.ttl` — 110 concepts across 10 schemes (v0.2), 20 relation pairs.
+
+**Semantic placement/dedup:** when `sentence-transformers` is installed (and `ONTOBRIDGE_EMBEDDINGS` is not `0`), the API path uses a `SentenceTransformerEncoder` for MappingAgent + TaxonomyAgent instead of the TF-IDF fallback — markedly better taxonomy placement and dedup. Built once via `build_encoder()` in `api/routers/pipeline.py`, warmed at startup. Tests/seed still use TF-IDF (deterministic).
 Schemes: Party, Product, Process, Risk, Document, Channel, Compliance, Pricing, Organisation, IT/Data.
 Loaded at startup into `OntologyIndex`; injected via `OntologyDep` in all routers that need it.
 A concept cannot be its own broader concept (`_rank_parents` skips exact-label matches).

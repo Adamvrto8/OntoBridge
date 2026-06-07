@@ -111,6 +111,8 @@ class TermDetail(TermSummary):
     fibo_match_type: str | None
     definition_source: str  # "document" | "fibo" | "llm"
     fibo_suggested_definition: str | None  # FIBO expected_definition, always included when available
+    placement_status: str | None = None       # "placed" | "unresolved"
+    placement_confidence: float | None = None  # 0.0–1.0 taxonomy placement score
 
     @classmethod
     def from_published(cls, t, ontology=None) -> "TermDetail":
@@ -190,6 +192,8 @@ class TermDetail(TermSummary):
             fibo_match_type=fibo.match_type if fibo else None,
             definition_source=et.definition_source,
             fibo_suggested_definition=fibo.expected_definition if fibo else None,
+            placement_status=tp.status.value if tp else None,
+            placement_confidence=round(tp.placement_confidence, 2) if tp else None,
         )
 
 

@@ -63,6 +63,18 @@ def create_app(
             print(f"FIBO loading failed: {exc} — running without FIBO matching.")
             app.state.fibo_matcher = None
 
+        # Dense encoder for semantic taxonomy placement + dedup. Loaded once
+        # here so the first upload isn't slow; falls back to TF-IDF when absent.
+        try:
+            from ontobridge.api.routers.pipeline import build_encoder
+            encoder = build_encoder()
+            if encoder is not None:
+                print("Semantic encoder ready (sentence-transformers).")
+            else:
+                print("Semantic encoder unavailable — using TF-IDF placement/dedup.")
+        except Exception as exc:
+            print(f"Encoder init failed: {exc} — using TF-IDF placement/dedup.")
+
         yield
 
     app = FastAPI(

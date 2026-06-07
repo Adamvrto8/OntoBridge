@@ -208,7 +208,7 @@ def test_sibling_conflict_detected_when_label_matches_a_sibling(base_ontology):
         similarity=0.97,
         target_uri="http://ontobridge.dev/ontology/bank/RetailPICustomer",
     )
-    placement = agent.evaluate(_term("Retail PI customer profile", match=match))
+    placement = agent.evaluate(_term("Retail PI customer group", match=match))
     assert placement.broader_concept_uri.endswith("/RetailCustomer")
     sibling_uris = {sc.sibling_uri for sc in placement.sibling_conflicts}
     assert any(uri.endswith("/RetailPICustomer") for uri in sibling_uris)
