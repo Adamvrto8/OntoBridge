@@ -31,11 +31,31 @@ _CLAUSE_CONNECTOR = re.compile(
 _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z\-]*")
 
 _LEADING_OBJ_FILLERS = frozenset({"and", "or", "then", "also", "to"})
-_TRAILING_OBJ_FILLERS = frozenset({"and", "or", "the", "a", "an", "to"})
+_TRAILING_OBJ_FILLERS = frozenset({
+    "and", "or", "the", "a", "an", "to",
+    # trailing prepositions / relativisers signal a clause fragment, not an object
+    "of", "for", "with", "in", "on", "by", "at", "from", "that", "which",
+})
 
 # Single-word determiners: if one of these is the only text before a vocab
 # word, the vocab word is being used as a noun ("A record of…"), not a verb.
 _BARE_DETERMINERS = frozenset({"a", "an", "the", "this", "that", "these", "those"})
+
+# Object phrases containing any of these read as run-on clause fragments rather
+# than a clean noun phrase ("…for individuals we", "…name any additional …"),
+# so the whole triple is dropped.
+_OBJ_REJECT_ANYWHERE = frozenset({
+    "we", "they", "i", "you", "he", "she", "it", "us", "them",
+    "our", "their", "its", "his", "her", "me", "my", "your",
+    "any", "each", "every",
+})
+
+# An object made up entirely of these carries no meaning — drop it.
+_OBJ_STOPWORDS = frozenset({
+    "and", "or", "the", "a", "an", "to", "of", "for", "with", "in", "on",
+    "by", "at", "from", "that", "which", "is", "are", "be", "as", "this",
+    "these", "those", "such",
+})
 
 # Max tokens allowed in an extracted object phrase. Longer spans are almost
 # always a sign the "verb" was actually a noun and the parser went off the rails.
@@ -194,6 +214,12 @@ class RegexHeuristicExtractor(SVOExtractor):
             while obj_tokens and obj_tokens[-1].casefold() in _TRAILING_OBJ_FILLERS:
                 obj_tokens = obj_tokens[:-1]
             if not obj_tokens or len(obj_tokens) > _MAX_OBJ_TOKENS:
+                continue
+            obj_cf = [t.casefold() for t in obj_tokens]
+            # Drop run-on clause fragments and all-stopword objects.
+            if any(t in _OBJ_REJECT_ANYWHERE for t in obj_cf):
+                continue
+            if all(t in _OBJ_STOPWORDS for t in obj_cf):
                 continue
             triples.append(
                 SVOTriple(

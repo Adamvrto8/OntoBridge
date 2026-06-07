@@ -7,8 +7,35 @@ import pytest
 
 from ontobridge.agents.harvester.readers.text import PlainTextReader
 from ontobridge.agents.harvester.readers.catalog import CatalogReader
+from ontobridge.agents.harvester.readers.pdf import _repair_spacing
 from ontobridge.agents.harvester.protocols import RawDocument
 from ontobridge.models.enums import SourceType
+
+
+# ---------------------------------------------------------------------------
+# PDF intra-word-space repair (requires pyspellchecker; skipped otherwise)
+# ---------------------------------------------------------------------------
+
+class TestRepairSpacing:
+    def test_merges_split_words(self):
+        pytest.importorskip("spellchecker")
+        assert _repair_spacing("nec essary cooper ation") == "necessary cooperation"
+
+    def test_leaves_valid_phrases_untouched(self):
+        pytest.importorskip("spellchecker")
+        # Both real words → never merged, even though concatenation could exist.
+        assert _repair_spacing("credit risk") == "credit risk"
+        assert _repair_spacing("loan application") == "loan application"
+
+    def test_preserves_newlines(self):
+        pytest.importorskip("spellchecker")
+        assert _repair_spacing("line one\nline two") == "line one\nline two"
+
+    def test_noop_without_spellchecker(self, monkeypatch):
+        import ontobridge.agents.harvester.readers.pdf as pdf_mod
+        monkeypatch.setattr(pdf_mod, "_SPELL", None)
+        # With no spell checker, text passes through unchanged.
+        assert pdf_mod._repair_spacing("nec essary") == "nec essary"
 
 
 # ---------------------------------------------------------------------------

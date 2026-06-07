@@ -123,3 +123,28 @@ def test_strips_trailing_punctuation_from_object():
 
 def test_punctuation_only_clauses_yield_nothing():
     assert RegexHeuristicExtractor().extract("...") == []
+
+
+# ---------- object quality filter ----------
+
+def test_rejects_object_with_trailing_pronoun_fragment():
+    # "...for individuals we" is a clause fragment, not a clean object.
+    triples = RegexHeuristicExtractor().extract(
+        "The process verifies identifying a client for individuals we have",
+        default_subject="Process",
+    )
+    assert triples == []
+
+
+def test_rejects_object_with_run_on_quantifier():
+    triples = RegexHeuristicExtractor().extract(
+        "The system verifies the company name any additional identifying data",
+        default_subject="System",
+    )
+    assert triples == []
+
+
+def test_keeps_clean_object_after_filtering():
+    triples = RegexHeuristicExtractor().extract("KYC verifies customer identity documents")
+    assert len(triples) == 1
+    assert triples[0].object == "customer identity documents"
