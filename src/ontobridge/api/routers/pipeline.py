@@ -159,6 +159,16 @@ async def run_pipeline(
 
         encoder = build_encoder()
         config = PipelineConfig(encoder=encoder) if encoder is not None else None
+        # Parallelise per-term LLM enrichment when an LLM is in play (calls are
+        # network-bound). Pure pattern runs stay sequential — threads wouldn't
+        # help CPU-bound work. Tunable via ONTOBRIDGE_PIPELINE_WORKERS.
+        if backend is not None:
+            try:
+                workers = int(os.environ.get("ONTOBRIDGE_PIPELINE_WORKERS", "8"))
+            except ValueError:
+                workers = 8
+        else:
+            workers = 1
         runner = BatchPipelineRunner(
             ontology=ontology,
             publisher=publisher,
@@ -168,6 +178,7 @@ async def run_pipeline(
             fibo_matcher=fibo_matcher,
             policy_linker=policy_linker,
             llm_backend=rel_backend,
+            max_workers=workers,
         )
         # Run the (blocking, LLM-heavy) pipeline in a worker thread so it does
         # not block uvicorn's event loop. On Windows a blocked loop fails to

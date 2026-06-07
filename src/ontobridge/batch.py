@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
@@ -125,6 +126,7 @@ class BatchPipelineRunner:
         definition_agent: LLMDefinitionAgent | None = None,
         fibo_matcher: FiboMatcher | None = None,
         llm_backend=None,
+        max_workers: int = 1,
     ) -> None:
         self._runner = PipelineRunner(
             ontology, publisher,
@@ -136,6 +138,10 @@ class BatchPipelineRunner:
         )
         self._harvester = harvester or HarvesterAgent()
         self._on_progress = on_progress
+        # >1 enables the concurrent path: per-term LLM enrichment runs in a
+        # thread pool while dedup/publish stays serial. Default 1 = fully
+        # sequential (unchanged behaviour).
+        self._max_workers = max(1, max_workers)
 
     # ------------------------------------------------------------------
     # Primary API
@@ -150,6 +156,8 @@ class BatchPipelineRunner:
         """Process a pre-harvested list of EnrichedTerms through the pipeline."""
         result = BatchResult()
         deduped = self._deduplicate_by_fibo(list(terms), result)
+        if self._max_workers > 1:
+            return self._run_terms_concurrent(deduped, result, approved_by=approved_by)
         total = len(deduped)
         for i, term in enumerate(deduped):
             self._process_one(term, result, approved_by=approved_by)
@@ -265,29 +273,154 @@ class BatchPipelineRunner:
         *,
         approved_by: str | None,
     ) -> None:
-        label = term.preferred_label or "(unlabelled)"
         try:
             outcome = self._runner.ingest(term, approved_by=approved_by)
-            if outcome.action == "merged":
-                result.merged.append(outcome.term)
-            elif outcome.action == "drifted":
-                result.drifted.append(outcome.term)
-            else:
-                result.published.append(outcome.term)
-        except ValueError as exc:
-            msg = str(exc)
-            # Duplicate URI from the publisher → skipped, not a failure
-            if "already exists" in msg or "candidate_labels" in msg or "definition" in msg:
-                result.skipped.append((term, msg))
-            else:
-                result.failed.append(
-                    FailedTerm(term=term, error_type="ValueError", error=msg)
-                )
+            self._record_outcome(result, outcome.action, outcome.term)
         except Exception as exc:  # noqa: BLE001
+            self._record_error(result, term, exc)
+
+    @staticmethod
+    def _record_outcome(result: BatchResult, action: str, term: PublishedTerm) -> None:
+        if action == "merged":
+            result.merged.append(term)
+        elif action == "drifted":
+            result.drifted.append(term)
+        else:
+            result.published.append(term)
+
+    @staticmethod
+    def _record_error(result: BatchResult, term: EnrichedTerm, exc: Exception) -> None:
+        msg = str(exc)
+        # Input-validation / duplicate-URI ValueErrors are expected → skipped.
+        if isinstance(exc, ValueError) and (
+            "already exists" in msg or "candidate_labels" in msg or "definition" in msg
+        ):
+            result.skipped.append((term, msg))
+        else:
             result.failed.append(
-                FailedTerm(
-                    term=term,
-                    error_type=type(exc).__name__,
-                    error=str(exc),
-                )
+                FailedTerm(term=term, error_type=type(exc).__name__, error=msg)
             )
+
+    # ------------------------------------------------------------------
+    # Concurrent path (max_workers > 1): enrich in parallel, publish serially
+    # ------------------------------------------------------------------
+
+    def _run_terms_concurrent(
+        self,
+        deduped: list[EnrichedTerm],
+        result: BatchResult,
+        *,
+        approved_by: str | None,
+    ) -> BatchResult:
+        # Phase 0 — serial prepare (mapping reads the publisher) + classify.
+        merges: list[tuple[EnrichedTerm, PublishedTerm]] = []
+        creates: list[EnrichedTerm] = []
+        for term in deduped:
+            try:
+                self._runner._prepare(term)
+            except Exception as exc:  # noqa: BLE001 — validation errors → skipped
+                self._record_error(result, term, exc)
+                continue
+            existing = self._runner._existing_published_target(term)
+            if existing is not None:
+                merges.append((term, existing))
+            else:
+                creates.append(term)
+
+        # Phase 0b — fold within-batch duplicate new terms into one winner so we
+        # don't enrich/publish the same concept twice (FIBO dedup already handled
+        # FIBO-identical terms; this catches same-label terms across documents).
+        winners = self._dedup_new_terms_by_label(creates, result)
+
+        # Phase A — enrich winners concurrently (the LLM-heavy, publisher-free work).
+        errors = self._enrich_concurrent(winners)
+
+        # Phase B — serial publish + merge (no publisher write races).
+        total = len(winners) + len(merges)
+        done = 0
+        for term in winners:
+            try:
+                exc = errors.get(id(term))
+                if exc is not None:
+                    raise exc
+                published = self._runner._commit(term, approved_by=approved_by)
+                self._record_outcome(result, "created", published)
+            except Exception as exc:  # noqa: BLE001
+                self._record_error(result, term, exc)
+            done += 1
+            if self._on_progress:
+                self._on_progress(done, total)
+
+        for term, existing in merges:
+            try:
+                outcome = self._runner._merge_into_existing(existing, term)
+                self._record_outcome(result, outcome.action, outcome.term)
+            except Exception as exc:  # noqa: BLE001
+                self._record_error(result, term, exc)
+            done += 1
+            if self._on_progress:
+                self._on_progress(done, total)
+
+        return result
+
+    def _enrich_concurrent(
+        self, winners: list[EnrichedTerm]
+    ) -> dict[int, Exception]:
+        """Run `_enrich` for each winner in a thread pool; collect failures by id."""
+        errors: dict[int, Exception] = {}
+        if not winners:
+            return errors
+        with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
+            futures = {pool.submit(self._runner._enrich, t): id(t) for t in winners}
+            for fut in as_completed(futures):
+                try:
+                    fut.result()
+                except Exception as exc:  # noqa: BLE001
+                    errors[futures[fut]] = exc
+        return errors
+
+    def _dedup_new_terms_by_label(
+        self, creates: list[EnrichedTerm], result: BatchResult
+    ) -> list[EnrichedTerm]:
+        """Collapse new terms sharing a preferred label into one winner.
+
+        Losers' labels + provenance are folded into the winner and the loser is
+        recorded in ``skipped`` with a merge reason (mirrors the FIBO dedup).
+        """
+        winners: list[EnrichedTerm] = []
+        by_label: dict[str, EnrichedTerm] = {}
+        for term in creates:
+            key = (term.preferred_label or "").casefold().strip()
+            if not key:
+                winners.append(term)
+                continue
+            winner = by_label.get(key)
+            if winner is None:
+                by_label[key] = term
+                winners.append(term)
+            else:
+                self._fold_term_into(winner, term)
+                result.skipped.append((
+                    term,
+                    f"merged into '{winner.preferred_label}' (same label, within batch)",
+                ))
+        return winners
+
+    @staticmethod
+    def _fold_term_into(winner: EnrichedTerm, loser: EnrichedTerm) -> None:
+        seen_labels = {c.text.casefold() for c in winner.candidate_labels}
+        for lbl in loser.candidate_labels:
+            if lbl.text.casefold() not in seen_labels:
+                winner.candidate_labels.append(
+                    CandidateLabel(
+                        text=lbl.text,
+                        confidence=lbl.confidence * 0.8,
+                        ner_label=lbl.ner_label,
+                    )
+                )
+                seen_labels.add(lbl.text.casefold())
+        seen_refs = {(p.document_ref, p.section) for p in winner.policy_context}
+        for ctx in loser.policy_context:
+            if (ctx.document_ref, ctx.section) not in seen_refs:
+                winner.policy_context.append(ctx)
+                seen_refs.add((ctx.document_ref, ctx.section))

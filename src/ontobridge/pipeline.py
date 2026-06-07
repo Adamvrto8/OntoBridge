@@ -189,6 +189,36 @@ class PipelineRunner:
             self.policy_linker.apply(term)
         self.mapping.apply(term)
 
+    def _enrich(self, term: EnrichedTerm) -> None:
+        """Publisher-independent enrichment of a brand-new term.
+
+        Taxonomy placement + LLM definition + relation extraction. None of these
+        touch the publisher, so this stage is safe to run concurrently across
+        terms (it only mutates the given term). Assumes ``_prepare`` already ran
+        (mapping result is used for taxonomy exclusion / relation anchoring).
+        """
+        self.taxonomy.apply(term)
+        if self.definition_agent is not None:
+            self.definition_agent.apply(term)
+        self.relations.apply(term)
+
+    def _commit(
+        self,
+        term: EnrichedTerm,
+        *,
+        term_uri: str | None = None,
+        approved_by: str | None = None,
+    ) -> PublishedTerm:
+        """Publisher-dependent finalisation + publish — must run serially.
+
+        Resolves relation objects against the publisher, runs governance, and
+        writes the term (plus the parent's narrower back-link).
+        """
+        self._resolve_relation_objects(term)
+        candidate = self._term_to_candidate(term)
+        term.governance_result = self.governance.evaluate(candidate)
+        return self.writer.publish(term, term_uri=term_uri, approved_by=approved_by)
+
     def _enrich_and_create(
         self,
         term: EnrichedTerm,
@@ -197,14 +227,8 @@ class PipelineRunner:
         approved_by: str | None = None,
     ) -> PublishedTerm:
         """Stages that enrich a brand-new term and publish it."""
-        self.taxonomy.apply(term)
-        if self.definition_agent is not None:
-            self.definition_agent.apply(term)
-        self.relations.apply(term)
-        self._resolve_relation_objects(term)
-        candidate = self._term_to_candidate(term)
-        term.governance_result = self.governance.evaluate(candidate)
-        return self.writer.publish(term, term_uri=term_uri, approved_by=approved_by)
+        self._enrich(term)
+        return self._commit(term, term_uri=term_uri, approved_by=approved_by)
 
     # ------------------------------------------------------------------
     # Upsert / drift

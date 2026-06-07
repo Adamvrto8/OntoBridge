@@ -350,3 +350,77 @@ def test_custom_harvester_is_used(base_ontology, tmp_path):
     result = runner.run_document(f)
     labels = [p.enriched_term.preferred_label for p in result.published]
     assert any("Retail Customer" in (lbl or "") for lbl in labels)
+
+
+# ---------------------------------------------------------------------------
+# Concurrent path (max_workers > 1)
+# ---------------------------------------------------------------------------
+
+class _SlowBackend:
+    """Fake LLM backend that sleeps, to make concurrency observable."""
+    def __init__(self, delay: float = 0.25) -> None:
+        self.delay = delay
+
+    def complete(self, system: str, user: str) -> str:
+        import time
+        time.sleep(self.delay)
+        return "{}"  # empty object: definitions keep original, relations -> []
+
+
+def _distinct_terms() -> list[EnrichedTerm]:
+    specs = [
+        ("Delinquency Rate", "The percentage of loans in a portfolio that are past due by ninety days."),
+        ("Prepayment Penalty", "A fee charged to a borrower who repays a loan before its maturity date."),
+        ("Escrow Account", "An account holding funds on behalf of two parties until conditions are met."),
+        ("Debt Service Ratio", "The share of income a borrower must devote to repaying outstanding debt."),
+    ]
+    return [_make_term(label, definition=defn, policy_doc=f"{label}.pdf") for label, defn in specs]
+
+
+class TestConcurrentPath:
+    def test_publishes_all_distinct_terms(self, base_ontology):
+        pub = InMemoryPublisher()
+        runner = BatchPipelineRunner(base_ontology, pub, max_workers=4)
+        result = runner.run_terms(_distinct_terms())
+        assert len(result.published) == 4
+        assert len(result.failed) == 0
+        assert len(pub.search_terms("")) == 4
+
+    def test_matches_sequential_published_set(self, base_ontology):
+        seq = BatchPipelineRunner(base_ontology, InMemoryPublisher(), max_workers=1)
+        conc = BatchPipelineRunner(base_ontology, InMemoryPublisher(), max_workers=4)
+        seq_labels = {p.enriched_term.preferred_label for p in seq.run_terms(_distinct_terms()).published}
+        conc_labels = {p.enriched_term.preferred_label for p in conc.run_terms(_distinct_terms()).published}
+        assert seq_labels == conc_labels
+
+    def test_within_batch_duplicate_not_duplicated(self, base_ontology):
+        pub = InMemoryPublisher()
+        runner = BatchPipelineRunner(base_ontology, pub, max_workers=4)
+        t1 = _make_term("Delinquency Rate", definition="A measure of loans past due by ninety days in a portfolio.")
+        t2 = _make_term("Delinquency Rate", definition="The share of a portfolio that is overdue by ninety days or more.")
+        result = runner.run_terms([t1, t2])
+        # Exactly one published; the duplicate folded in (skipped), no dup stored.
+        assert len(result.published) == 1
+        assert len(result.skipped) == 1
+        assert len(pub.search_terms("")) == 1
+
+    def test_enrichment_runs_in_parallel(self, base_ontology):
+        import time
+        from ontobridge.agents.definition.agent import LLMDefinitionAgent
+
+        def _run(workers: int) -> float:
+            runner = BatchPipelineRunner(
+                base_ontology,
+                InMemoryPublisher(),
+                definition_agent=LLMDefinitionAgent(_SlowBackend(0.25)),
+                max_workers=workers,
+            )
+            t0 = time.perf_counter()
+            runner.run_terms(_distinct_terms())
+            return time.perf_counter() - t0
+
+        sequential = _run(1)
+        concurrent = _run(4)
+        # 4 terms x (def + relations) slow calls: concurrency should be well under
+        # the sequential wall-clock.
+        assert concurrent < sequential * 0.6
