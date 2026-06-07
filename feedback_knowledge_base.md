@@ -1,69 +1,69 @@
 # OntoBridge Feedback Knowledge Base
 
-Systém pro sběr a využití zpětné vazby od stewardů k postupnému zlepšování výstupů AI agentů.
+System for collecting and applying steward feedback to progressively improve AI agent outputs.
 
 ---
 
-## Proč to existuje
+## Why it exists
 
-LLM agenti v pipeline produkují nedeterministické výstupy — definice, relace, doporučení. Steward tyto výstupy opravuje ručně přes UI. Bez tohoto systému každá oprava zmizí a příštím průchodem pipeline produkuje stejné chyby.
+LLM agents in the pipeline produce non-deterministic outputs — definitions, relations, recommendations. Stewards correct these manually through the UI. Without this system, every correction is lost and the pipeline makes the same mistakes on the next run.
 
-**Cíl:** Každá steward oprava se uloží a při příštím průchodu pipeline se automaticky vloží do LLM promptu jako příklad správného výstupu (few-shot learning).
+**Goal:** Every steward correction is stored and automatically injected into the LLM prompt as a worked example (few-shot learning) on the next pipeline run.
 
 ---
 
-## Architektura
+## Architecture
 
 ```
-Steward akce v UI
+Steward action in UI
     │
     ▼
 PATCH /api/terms/{uri}/edit          PATCH /api/terms/{uri}/relations
-    │  (definice, taxonomie)               │  (schválení / zamítnutí)
+    │  (definition, taxonomy)              │  (approve / reject)
     │                                      │
     └──────────────┬───────────────────────┘
                    │
                    ▼
             FeedbackStore  ◄──── app.state.feedback_store
-         (ukládá before/after)
+         (stores before/after)
                    │
          ┌─────────┴──────────┐
          │                    │
   InMemoryFeedbackStore  SqliteFeedbackStore
-  (demo režim)           (DB_PATH režim → *_feedback.db)
+  (demo mode)            (DB_PATH mode → *_feedback.db)
                    │
                    ▼
-    Při dalším průchodu pipeline:
+    On the next pipeline run:
          │
     ┌────┴────────────────────────┐
     │                             │
     ▼                             ▼
 LLMDefinitionAgent          RelationsAgent (LLM stage)
-  few-shot: opravy definic     few-shot: schválené/zamítnuté relace
+  few-shot: definition fixes   few-shot: approved/rejected relations
 ```
 
 ---
 
-## Typy událostí
+## Event types
 
-| event_type | Kdy vznikne | old_value | new_value |
+| event_type | When created | old_value | new_value |
 |---|---|---|---|
-| `definition_corrected` | Steward přepíše definici | původní text | opravený text |
-| `taxonomy_corrected` | Steward změní broader concept | původní URI | nové URI |
-| `relation_approved` | Steward schválí navrženou relaci | `""` | `"verb → object"` |
-| `relation_rejected` | Steward zamítne navrženou relaci | `"verb → object"` | `""` |
+| `definition_corrected` | Steward rewrites a definition | original text | corrected text |
+| `taxonomy_corrected` | Steward changes the broader concept | old URI | new URI |
+| `relation_approved` | Steward approves a proposed relation | `""` | `"verb → object"` |
+| `relation_rejected` | Steward rejects a proposed relation | `"verb → object"` | `""` |
 
 ---
 
-## Datový model
+## Data model
 
 ```python
 @dataclass
 class FeedbackEvent:
-    event_type: str      # viz tabulka výše
+    event_type: str      # see table above
     term_label: str      # "Mortgage Loan"
-    old_value: str       # co agent vygeneroval
-    new_value: str       # co steward opravil
+    old_value: str       # what the agent generated
+    new_value: str       # what the steward corrected it to
     actor: str           # "steward.alice"
     term_uri: str        # "http://ontobridge.dev/ontology/bank/MortgageLoan"
     timestamp: datetime  # UTC
@@ -71,25 +71,25 @@ class FeedbackEvent:
 
 ---
 
-## Jak se feedback vkládá do promptů
+## How feedback is injected into prompts
 
 ### LLMDefinitionAgent
 
-Při generování definice agent načte posledních 3–5 oprav a vloží je do promptu:
+When generating a definition, the agent fetches the last 3–5 corrections and injects them into the prompt:
 
 ```
 Past steward corrections (use as style guide):
-  "Mortgage Loan": agent wrote "A loan for buying property." 
+  "Mortgage Loan": agent wrote "A loan for buying property."
                  → steward corrected to "A credit product secured by real estate..."
-  "Credit Risk":  agent wrote "The chance of default." 
+  "Credit Risk":  agent wrote "The chance of default."
                  → steward corrected to "The risk that a borrower will fail..."
 ```
 
-LLM si z těchto příkladů odvodí požadovaný styl — délku, terminologii, formát.
+The LLM infers the expected style — length, terminology, format — from these examples.
 
 ### RelationsAgent (LLM stage)
 
-Schválené relace se vloží jako pozitivní příklady, zamítnuté jako negativní:
+Approved relations are injected as positive examples, rejected ones as negative:
 
 ```
 Steward-approved relations (these types are valued):
@@ -102,17 +102,17 @@ Steward-rejected relations (avoid proposing these types):
 
 ---
 
-## Klíčové soubory
+## Key files
 
-| Soubor | Popis |
+| File | Description |
 |---|---|
 | `src/ontobridge/feedback/models.py` | `FeedbackEvent` dataclass |
-| `src/ontobridge/feedback/base.py` | Abstraktní `FeedbackStore` (ABC) |
-| `src/ontobridge/feedback/memory.py` | `InMemoryFeedbackStore` — výchozí (demo režim) |
-| `src/ontobridge/feedback/sqlite.py` | `SqliteFeedbackStore` — perzistentní (SQLite) |
-| `src/ontobridge/api/main.py` | Inicializace `app.state.feedback_store` |
-| `src/ontobridge/api/deps.py` | `FeedbackStoreDep` pro dependency injection |
-| `src/ontobridge/api/routers/terms.py` | Hooky v `PATCH /edit` a `PATCH /relations` |
+| `src/ontobridge/feedback/base.py` | Abstract `FeedbackStore` (ABC) |
+| `src/ontobridge/feedback/memory.py` | `InMemoryFeedbackStore` — default (demo mode) |
+| `src/ontobridge/feedback/sqlite.py` | `SqliteFeedbackStore` — persistent (SQLite) |
+| `src/ontobridge/api/main.py` | Initialises `app.state.feedback_store` |
+| `src/ontobridge/api/deps.py` | `FeedbackStoreDep` for dependency injection |
+| `src/ontobridge/api/routers/terms.py` | Hooks in `PATCH /edit` and `PATCH /relations` |
 | `src/ontobridge/agents/definition/prompt.py` | `build_user_prompt(term, examples=...)` |
 | `src/ontobridge/agents/definition/agent.py` | `LLMDefinitionAgent(backend, feedback_store=...)` |
 | `src/ontobridge/agents/relations/agent.py` | `RelationsAgent(..., feedback_store=...)` |
@@ -120,61 +120,61 @@ Steward-rejected relations (avoid proposing these types):
 
 ---
 
-## Spuštění
+## Running the server
 
-### Demo režim (in-memory, bez perzistence)
+### Demo mode (in-memory, no persistence)
 ```powershell
 uvicorn api_server:app
 ```
-Feedback se ukládá jen do paměti — zmizí po restartu.
+Feedback is stored in memory only — lost on restart.
 
-### Perzistentní režim
+### Persistent mode
 ```powershell
 $env:DB_PATH = "ontobridge.db"
 uvicorn api_server:app
 ```
-Feedback se ukládá do `ontobridge_feedback.db` (SQLite). Přežije restart serveru.
+Feedback is written to `ontobridge_feedback.db` (SQLite) and survives restarts.
 
 ---
 
-## Omezení a plánovaná rozšíření
+## Limitations and planned improvements
 
-### Aktuální omezení
+### Current limitations
 
-- **Feedback se nepoužívá pro TaxonomyAgent** — ten je deterministický (similarity scoring), ne LLM-based. Viz sekci níže.
-- **Feedback ovlivňuje jen LLM agenty** (`LLMDefinitionAgent`, `RelationsAgent` s LLM backendem).
-- **Žádná de-duplikace** — stejný termín lze opravit vícekrát, v promptu se zobrazí jen nejnovější záznamy.
-- **Žádná sémantická podobnost při výběru příkladů** — get_examples vrací posledních N záznamů daného typu, ne nejrelevantnější k aktuálnímu termínu.
+- **Feedback is not used by TaxonomyAgent** — it is deterministic (similarity scoring + overrides), not LLM-based.
+- **Feedback only influences LLM agents** (`LLMDefinitionAgent`, `RelationsAgent` with LLM backend).
+- **No deduplication** — the same term can be corrected multiple times; only the most recent N entries appear in the prompt.
+- **No semantic similarity when selecting examples** — `get_examples` returns the last N records of a given type, not the most relevant ones to the current term.
 
-### Možná budoucí rozšíření
+### Possible future improvements
 
-| Vylepšení | Popis | Složitost |
+| Improvement | Description | Complexity |
 |---|---|---|
-| Sémantický výběr příkladů | Místo posledních N záznamů vybrat embeddings-podobné k aktuálnímu termínu | střední |
-| Feedback statistiky | Endpoint `GET /api/feedback/stats` — kolik oprav, které termíny nejčastěji | nízká |
-| Export pro fine-tuning | `GET /api/feedback/export` — formát JSONL pro případný fine-tuning modelu | nízká |
+| Semantic example selection | Use embeddings to pick examples closest to the current term instead of the last N | medium |
+| Feedback statistics | `GET /api/feedback/stats` endpoint — correction counts, most-corrected terms | low |
+| Fine-tuning export | `GET /api/feedback/export` — JSONL format for potential model fine-tuning | low |
 
 ---
 
-## TaxonomyAgent — přehled a vylepšení
+## TaxonomyAgent — overview and improvements
 
-### Jak funguje
+### How it works
 
-`TaxonomyAgent.apply()` prochází tři vrstvy priority:
+`TaxonomyAgent.apply()` goes through three priority layers:
 
 ```
-1. Taxonomy overrides (ontology/taxonomy_overrides.json)
-        ↓ nenalezeno
-2. FIBO hierarchie (term.fibo_match.broader_uri)
-        ↓ žádný FIBO match
-3. Similarity algoritmus s penalizací délky
+1. Taxonomy overrides  (ontology/taxonomy_overrides.json)
+        ↓ not found
+2. FIBO hierarchy  (term.fibo_match.broader_uri)
+        ↓ no FIBO match
+3. Similarity algorithm with length penalty
 ```
 
 ### 1. Taxonomy overrides
 
-Soubor `ontology/taxonomy_overrides.json` — ručně udržovaný seznam správných parent-child párů. Agent ho načte při startu a zkontroluje jako první, před jakýmkoli algoritmem.
+`ontology/taxonomy_overrides.json` — a manually maintained list of correct parent-child pairs. The agent loads it at startup and checks it first, before any algorithm runs.
 
-**Formát:**
+**Format:**
 ```json
 {
   "Corporate customer": "http://ontobridge.dev/ontology/bank/Customer",
@@ -182,35 +182,50 @@ Soubor `ontology/taxonomy_overrides.json` — ručně udržovaný seznam správn
 }
 ```
 
-**Jak přidat nový záznam:** Stačí přidat řádek do souboru. Změna se projeví po restartu serveru. Kód se nemění.
+**Adding a new entry:** Add a line to the file. The change takes effect after a server restart. No code changes needed.
 
-Aktuálně obsahuje 25 párů pokrývající zákazníky, produkty, dokumenty, kanály, regulace, organisaci a IT systémy.
+Currently contains 25 pairs covering customers, products, documents, channels, regulations, organisation units, and IT systems.
 
-### 2. FIBO hierarchie
+### 2. FIBO hierarchy
 
-Pokud FiboMatcher (spuštěný dříve v pipeline) přiřadil termínu `fibo_match` s `broader_uri`, TaxonomyAgent tuto FIBO hierarchii použije přímo (confidence 0.95). FIBO index obsahuje 16 409 tříd a pokrývá hlavní finanční koncepty (FBC, LOAN, FND, SEC...).
+If the FiboMatcher (run earlier in the pipeline) assigned a `fibo_match` with a `broader_uri` to the term, TaxonomyAgent uses that FIBO hierarchy directly (confidence 0.95). The FIBO index contains 16,409 classes and covers the main financial concepts (FBC, LOAN, FND, SEC…).
 
-Tato cesta funguje automaticky — nevyžaduje žádnou ruční konfiguraci.
+This path is fully automatic — no manual configuration required.
 
-### 3. Similarity algoritmus s penalizací délky
+### 3. Similarity algorithm with length penalty
 
-Záložní cesta, spustí se pouze pokud termín nemá override ani FIBO match.
+Fallback path, triggered only when the term has neither an override nor a FIBO match.
 
-**Kořenová příčina původního problému (před opravou):** Agent měřil token overlap symetricky a vybíral nejpodobnější label v ontologii — ale ten byl často sourozenec nebo potomek (např. "Interest Rate" → "Fixed interest rate").
+**Root cause of the original bug (before the fix):** The agent measured token overlap symmetrically and picked the most similar label in the ontology — but that was often a sibling or child concept (e.g. "Interest Rate" → "Fixed interest rate").
 
-**Oprava:** Do `_rank_parents` přidána penalizace:
-- Pokud jsou tokeny dotazovaného labelu podmnožinou tokenů kandidáta (kandidát je pravděpodobně potomek) → skóre × 0.25
-- Mírná penalizace za každé extra slovo nad 2 → preferuje kratší, obecnější labely
+**Fix:** Length penalty added to `_rank_parents`:
+- If the query label's tokens are a subset of the candidate's tokens (candidate is likely a child) → score × 0.25
+- Mild penalty for each extra word beyond 2 → prefers shorter, more general labels
 
-### Výsledky testování
+### Test results
 
-| Stav | Přesnost (golden dataset, 14 párů) |
+| State | Accuracy (golden dataset, 14 pairs) |
 |---|---|
-| Před opravou (bez FIBO, bez overrides) | **14 %** (2/14) |
-| Po opravě (overrides + penalizace délky) | **100 %** (14/14) |
+| Before fix (no FIBO, no overrides) | **14%** (2/14) |
+| After fix (overrides + length penalty) | **100%** (14/14) |
 
-Viz `tests/test_golden_taxonomy.py` pro kompletní golden dataset a přesná očekávání.
+See `tests/test_golden_taxonomy.py` for the full golden dataset and exact expectations.
 
-### FIBO stav
+### FIBO status
 
-FIBO ontologie je naklonována v `ontology/fibo/` (297 `.rdf` souborů, 16 409 tříd). Načítá se automaticky při startu serveru — výstup `FIBO index ready.` potvrzuje úspěšné načtení. Varování o datech (`Invalid isoformat string`) jsou kosmetická a neblokují načítání.
+The FIBO ontology is cloned at `ontology/fibo/` (297 `.rdf` files, 16,409 classes). It loads automatically at server startup — the message `FIBO index ready.` confirms successful loading. Warnings about dates (`Invalid isoformat string`) are cosmetic and do not block loading.
+
+---
+
+## Test suite
+
+As part of this work, **87 automated tests** were written across two files:
+
+| File | Tests | What it covers |
+|---|---|---|
+| `tests/test_invariants.py` | 71 | Structural constraints on all pipeline agents — model validation, agent output invariants (GovernanceAgent, TaxonomyAgent, MappingAgent, RelationsAgent) |
+| `tests/test_golden_taxonomy.py` | 16 | Golden dataset: ground truth parent-child pairs from the ontology, taxonomy accuracy threshold |
+
+All 87 tests are deterministic and require no API key.
+
+For LLM-based quality evaluation (non-deterministic, requires `ANTHROPIC_API_KEY`), see `tests/eval_llm_judge.py`.
