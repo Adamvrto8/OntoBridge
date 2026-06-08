@@ -101,7 +101,7 @@ Interactive API docs: **http://localhost:8001/docs**
 
 ---
 
-## Full developer install (matches the reference environment — 745 tests)
+## Full developer install (matches the reference environment — 779 tests)
 
 This is what gives you the same setup as the person who set up the project, including all optional NLP packages needed for the full test suite.
 
@@ -124,11 +124,11 @@ python -m spacy download en_core_web_sm
 # 5. Install Node.js frontend dependencies
 cd frontend && npm install && cd ..
 
-# 6. Verify: full test suite should show 745 collected
+# 6. Verify: full test suite should show 779 collected
 pytest --collect-only -q
 ```
 
-Expected output: `745 tests collected` (~65 of those require sentence-transformers / spaCy / chromadb and are skipped automatically when those packages are not installed).
+Expected output: `779 tests collected` (~65 of those require sentence-transformers / spaCy / chromadb and are skipped automatically when those packages are not installed).
 
 ---
 
@@ -294,7 +294,7 @@ In Run Pipeline: enable an LLM toggle → select **Anthropic API** → choose mo
 Available models (fastest → best quality):
 - `claude-haiku-4-5-20251001`
 - `claude-sonnet-4-6`
-- `claude-opus-4-7`
+- `claude-opus-4-8`
 
 ### Option B — Ollama (local, no API key needed)
 
@@ -311,10 +311,8 @@ Available models (fastest → best quality):
 ## Running tests
 
 ```bash
-# Minimal install (558 tests collected — NLP packages not installed)
-pytest
-
-# Full dev install (598 tests collected — includes spaCy + sentence-transformers tests)
+# Run the full suite (779 tests; optional NLP/embedding tests skip
+# automatically when those packages are not installed)
 pytest
 
 # Single file
@@ -328,8 +326,8 @@ pytest -k "fibo" -v
 
 | Condition | Result |
 |---|---|
-| Full dev install (`.[dev,embeddings,nlp]` + spaCy model) | **745 passed** |
-| Base install (`.[api,readers,llm]`) | 745 collected; the ~65 tests needing spaCy / sentence-transformers / chromadb skip automatically |
+| Full dev install (`.[dev,embeddings,nlp]` + spaCy model) | **779 passed** |
+| Base install (`.[api,readers,llm]`) | 779 collected; the ~65 tests needing spaCy / sentence-transformers / chromadb skip automatically |
 
 The optional-package tests (`test_spacy_extractors.py`, `test_sentence_transformer_encoder.py`, `test_policy_linker_store.py`) use `pytest.importorskip`, so `pytest` reports a 100% pass rate whether or not those packages are installed.
 
@@ -338,6 +336,8 @@ The optional-package tests (`test_spacy_extractors.py`, `test_sentence_transform
 ## Platform integration (Dawiso, Collibra, etc.)
 
 OntoBridge exposes a REST API designed for ingestion into external data catalogs.
+
+Publishing a term is **local-only**. Pushing it to an external glossary (Dawiso today, Collibra and others later) is an explicit, opt-in step a steward triggers per term from the **Glossary** or term-detail page (`POST /api/terms/{uri}/publish-dawiso`) — there is no automatic push on approval, so the same term can be sent to multiple catalogs without creating duplicates.
 
 ### Authentication
 
@@ -477,8 +477,10 @@ FiboMatcher           matches against FIBO labels/synonyms/abbreviations
 MappingAgent          checks for duplicates against ontology concepts
    |                  AND already-published terms (cross-document dedup)
    v
-TaxonomyAgent         FIBO hierarchy placement (falls back to TF-IDF
-   |                  ontology similarity when no FIBO match found)
+TaxonomyAgent         broader-concept placement via FIBO hierarchy (falls
+   |                  back to TF-IDF ontology similarity); the scheme is
+   |                  classified by meaning via the LLM into one of the
+   |                  ontology's concept schemes
    v
 DefinitionAgent       heuristic sentence scoring + optional LLM rewrite
    |                  (LLM also generates IF/THEN business rules)
@@ -545,7 +547,7 @@ ontobridge/
 │   │   ├── fibo/            # FIBO ontology loader, index, matcher
 │   │   ├── taxonomy/        # SKOS taxonomy placement
 │   │   ├── relations/       # SVO semantic relation extraction
-│   │   ├── governance/      # 14 lifecycle rules (DRAFT → REVIEW → PUBLISHED)
+│   │   ├── governance/      # 14 governance rules (5-state lifecycle)
 │   │   ├── policy_linker/   # TF-IDF and vector similarity to policies
 │   │   └── mapping/         # Ontology mapping strategies (TF-IDF encoder)
 │   ├── audit/               # Audit log (in-memory and SQLite)
@@ -559,7 +561,7 @@ ontobridge/
 │       └── components/      # Sidebar, TopBar, shared components
 ├── ontology/
 │   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (110 concepts, 10 schemes)
-├── tests/                   # 658 tests (~65 need optional NLP/embedding packages)
+├── tests/                   # 779 tests (~65 need optional NLP/embedding packages)
 ├── mcp_server.py            # MCP server (fastmcp, STDIO/SSE)
 ├── api_server.py            # FastAPI entry point
 └── start_server.ps1         # Shared team server launcher
@@ -584,9 +586,8 @@ ontobridge/
 | **Governance Inbox** | Review terms with severity, confidence, age, governance issues |
 | **Run Pipeline** | Upload document, configure LLM, run extraction |
 | **Term Detail** | Definition, alt labels, taxonomy override, semantic relations, lifecycle transitions |
-| **Glossary** | Browse published terms, filter by scheme/approver/version, export CSV |
+| **Glossary** | Browse published terms, filter by scheme/approver/version, export CSV, and publish each term to an external glossary (Dawiso) |
 | **Pipeline Stats** | Extraction and governance metrics by scheme |
-| **Knowledge Graph** | Force-directed graph of terms and resolved semantic relations |
 | **Audit Log** | Full history of all governance actions |
 
 ---
