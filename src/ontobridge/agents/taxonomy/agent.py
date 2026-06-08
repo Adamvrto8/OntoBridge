@@ -78,6 +78,7 @@ class TaxonomyAgent:
         sibling_conflict_threshold: float = DEFAULT_SIBLING_CONFLICT_THRESHOLD,
         curie_prefix: str = DEFAULT_CURIE_PREFIX,
         overrides_path: Path | str | None = _DEFAULT_OVERRIDES,
+        llm_backend=None,
     ):
         if not 0.0 <= placement_threshold <= 1.0:
             raise ValueError("placement_threshold must be in [0.0, 1.0]")
@@ -89,6 +90,11 @@ class TaxonomyAgent:
         self.sibling_conflict_threshold = sibling_conflict_threshold
         self.curie_prefix = curie_prefix
         self._overrides: dict[str, str] = self._load_overrides(overrides_path)
+        # Optional LLM used to classify the scheme directly by meaning, instead
+        # of inheriting it from a lexically-matched broader concept.
+        self.llm_backend = llm_backend
+        self._scheme_cache: dict[str, str] = {}
+        self._scheme_system_prompt: str | None = None
 
     @staticmethod
     def _load_overrides(path: Path | str | None) -> dict[str, str]:
@@ -141,7 +147,7 @@ class TaxonomyAgent:
             sibling_conflicts=siblings,
         )
 
-    def apply(self, term: EnrichedTerm) -> EnrichedTerm:
+    def apply(self, term: EnrichedTerm, classify_scheme: bool = True) -> EnrichedTerm:
         # 1. Manual overrides — highest priority
         override = self._overrides.get((term.preferred_label or "").casefold())
         if override:
@@ -163,7 +169,113 @@ class TaxonomyAgent:
         else:
             # 3. Similarity algorithm with length penalty
             term.taxonomy_placement = self.evaluate(term)
+
+        # 4. Scheme — classify by meaning rather than inheriting it from the
+        #    broader concept, which is often a lexical false-friend (e.g.
+        #    "Foundation Fund" placed under "SourceOfFunds"). No-op without an LLM.
+        #    The pipeline defers this (classify_scheme=False) until the definition
+        #    agent has polished term.definition, then calls apply_scheme().
+        if classify_scheme:
+            self._apply_llm_scheme(term)
         return term
+
+    def apply_scheme(self, term: EnrichedTerm) -> None:
+        """Classify the scheme from the (now-final) definition.
+
+        Call after the definition agent has rewritten ``term.definition`` — a
+        complete definition classifies far better than the raw harvested
+        snippet. Respects manual overrides and is a no-op without an LLM.
+        """
+        if self._overrides.get((term.preferred_label or "").casefold()):
+            return  # explicit override — keep its scheme
+        self._apply_llm_scheme(term)
+
+    def _apply_llm_scheme(self, term: EnrichedTerm) -> None:
+        placement = term.taxonomy_placement
+        if placement is None:
+            return
+        scheme_uri = self._classify_scheme(term)
+        if scheme_uri:
+            placement.scheme_uri = scheme_uri
+
+    def _classify_scheme(self, term: EnrichedTerm) -> str | None:
+        if self.llm_backend is None:
+            return None
+        label = (term.preferred_label or "").strip()
+        if not label:
+            return None
+        key = label.casefold()
+        if key in self._scheme_cache:
+            return self._scheme_cache[key]
+
+        catalog = self.ontology.scheme_catalog()
+        if not catalog:
+            return None
+        if self._scheme_system_prompt is None:
+            self._scheme_system_prompt = self._build_scheme_prompt(catalog)
+
+        definition = (term.definition or "").strip()
+        user = f"Term: {label}"
+        if definition:
+            user += f"\nDefinition: {definition[:600]}"
+
+        try:
+            response = self.llm_backend.complete(
+                system=self._scheme_system_prompt, user=user
+            )
+        except Exception:  # noqa: BLE001 — scheme classification must never abort the run
+            return None
+
+        scheme_uri = self._match_scheme(response, catalog)
+        if scheme_uri is not None:
+            self._scheme_cache[key] = scheme_uri
+        return scheme_uri
+
+    @staticmethod
+    def _build_scheme_prompt(catalog: list[tuple[str, str, str]]) -> str:
+        lines = [
+            "You are an ontology classifier for a retail bank's business glossary.",
+            "Classify the term into EXACTLY ONE concept scheme from the list below.",
+            "",
+            "Classify by what the term fundamentally IS — its intrinsic type — NOT",
+            "by the regulatory or business context it is discussed in. A cash",
+            "transaction is a Process even when described in an anti-money-laundering",
+            "rule; a beneficial owner is a Party even when discussed for compliance;",
+            "an identity document is a Document. Pick the structural scheme that",
+            "matches the term's nature (a person/role → Party, a thing owned/sold →",
+            "Product, an activity/procedure → Process, a record/form → Document).",
+            "",
+            "Use the Compliance / Regulatory scheme ONLY for actual regulations,",
+            "legal obligations, compliance controls, and regulatory frameworks",
+            "themselves — never as a catch-all for ordinary terms that merely appear",
+            "in a compliance document.",
+            "",
+            "Reply with ONLY the scheme label, copied verbatim — no other text.",
+            "",
+            "Concept schemes:",
+        ]
+        for _uri, scheme_label, desc in catalog:
+            lines.append(f"- {scheme_label}: {desc}" if desc else f"- {scheme_label}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _match_scheme(
+        response: str, catalog: list[tuple[str, str, str]]
+    ) -> str | None:
+        text = (response or "").strip().casefold()
+        if not text:
+            return None
+        # Exact label match first.
+        for uri, scheme_label, _ in catalog:
+            if text == scheme_label.casefold():
+                return uri
+        # Then containment either way — handles the model echoing "Party" for
+        # "Party / Customer" or wrapping the label in a short sentence.
+        for uri, scheme_label, _ in catalog:
+            lc = scheme_label.casefold()
+            if lc in text or text in lc:
+                return uri
+        return None
 
     def _fibo_placement(self, term: EnrichedTerm, fibo) -> TaxonomyPlacement:
         scheme_uri = (

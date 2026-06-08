@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from rdflib import Graph, Literal, Namespace, URIRef
-from rdflib.namespace import OWL, RDF, RDFS, SKOS
+from rdflib.namespace import DCTERMS, OWL, RDF, RDFS, SKOS
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,19 @@ class OntologyIndex:
 
     def scheme_label(self, scheme_uri: str) -> str | None:
         return self._scheme_labels.get(scheme_uri)
+
+    def scheme_catalog(self) -> list[tuple[str, str, str]]:
+        """All concept schemes as ``(uri, prefLabel, description)`` tuples.
+
+        Used to drive constrained scheme classification — the description
+        disambiguates schemes whose labels overlap (e.g. "Organisation"
+        meaning internal structure vs "Party / Customer" for counterparties).
+        """
+        catalog: list[tuple[str, str, str]] = []
+        for uri, label in self._scheme_labels.items():
+            desc = self.graph.value(URIRef(uri), DCTERMS.description)
+            catalog.append((uri, label, str(desc) if desc is not None else ""))
+        return catalog
 
     def by_uri(self, concept_uri: str) -> ConceptRecord | None:
         for c in self._concepts:

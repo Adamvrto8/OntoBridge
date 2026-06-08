@@ -116,24 +116,25 @@ class PipelineRunner:
             embedding_threshold=cfg.embedding_threshold,
             encoder=_encoder,
         )
+        # An explicit backend when provided, otherwise fall back to the
+        # definition agent's backend. This decouples LLM enrichment from the
+        # "improve definitions" toggle — taxonomy/relations get the LLM whenever
+        # one is configured for the run (e.g. LLM NER), not only when definitions
+        # are being rewritten.
+        _llm = llm_backend or (
+            definition_agent._backend if definition_agent is not None else None
+        )
         self.taxonomy = TaxonomyAgent(
             ontology,
             encoder=_encoder,
             placement_threshold=cfg.placement_threshold,
             sibling_conflict_threshold=cfg.sibling_conflict_threshold,
-        )
-        # Relations use an explicit backend when provided, otherwise fall back to
-        # the definition agent's backend. This decouples LLM relation extraction
-        # from the "improve definitions" toggle — relations get the LLM whenever
-        # one is configured for the run (e.g. LLM NER), not only when definitions
-        # are being rewritten.
-        rel_backend = llm_backend or (
-            definition_agent._backend if definition_agent is not None else None
+            llm_backend=_llm,
         )
         self.relations = RelationsAgent(
             ontology,
             fibo_matcher=fibo_matcher,
-            llm_backend=rel_backend,
+            llm_backend=_llm,
         )
         self.governance = GovernanceAgent(ontology)
         self.writer = WriterAgent(
@@ -207,9 +208,15 @@ class PipelineRunner:
         terms (it only mutates the given term). Assumes ``_prepare`` already ran
         (mapping result is used for taxonomy exclusion / relation anchoring).
         """
-        self.taxonomy.apply(term)
+        # Broader-concept placement first (the definition agent uses it as
+        # context). When a definition agent will polish the text, defer scheme
+        # classification until after it — a complete definition classifies the
+        # scheme far better than the raw harvested snippet.
+        defer_scheme = self.definition_agent is not None
+        self.taxonomy.apply(term, classify_scheme=not defer_scheme)
         if self.definition_agent is not None:
             self.definition_agent.apply(term)
+            self.taxonomy.apply_scheme(term)
         self.relations.apply(term)
 
     def _commit(

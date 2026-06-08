@@ -287,6 +287,91 @@ def test_constructor_validates_thresholds(base_ontology):
         TaxonomyAgent(base_ontology, sibling_conflict_threshold=-0.1)
 
 
+# ---------- LLM scheme classification ----------
+
+class _FakeSchemeBackend:
+    """Returns a canned reply for ``complete`` and counts invocations."""
+
+    def __init__(self, reply: str) -> None:
+        self.reply = reply
+        self.calls = 0
+
+    def complete(self, system: str, user: str) -> str:
+        self.calls += 1
+        return self.reply
+
+
+class _RaisingBackend:
+    def complete(self, system: str, user: str) -> str:
+        raise RuntimeError("backend down")
+
+
+def test_llm_scheme_overrides_inherited_scheme(base_ontology):
+    # Nearest-neighbour would place this under SchemeParty; the LLM says Document.
+    backend = _FakeSchemeBackend("Document")
+    agent = TaxonomyAgent(base_ontology, llm_backend=backend)
+    term = _term("Premium retail customer")
+    agent.apply(term)
+    assert backend.calls == 1
+    assert term.taxonomy_placement.scheme_uri.endswith("/SchemeDocument")
+    # Only the scheme is reclassified — broader-concept placement is untouched.
+    assert term.taxonomy_placement.broader_concept_uri.endswith("/RetailCustomer")
+
+
+def test_llm_scheme_handles_verbose_reply(base_ontology):
+    backend = _FakeSchemeBackend("The best fit is Party / Customer.")
+    agent = TaxonomyAgent(base_ontology, llm_backend=backend)
+    term = _term("Premium retail customer")
+    agent.apply(term)
+    assert term.taxonomy_placement.scheme_uri.endswith("/SchemeParty")
+
+
+def test_llm_scheme_failure_is_isolated(base_ontology):
+    agent = TaxonomyAgent(base_ontology, llm_backend=_RaisingBackend())
+    term = _term("Premium retail customer")
+    agent.apply(term)  # must not raise
+    # Falls back to the inherited nearest-neighbour scheme.
+    assert term.taxonomy_placement.scheme_uri.endswith("/SchemeParty")
+
+
+def test_llm_scheme_result_is_cached_per_label(base_ontology):
+    backend = _FakeSchemeBackend("Channel")
+    agent = TaxonomyAgent(base_ontology, llm_backend=backend)
+    agent.apply(_term("Premium retail customer"))
+    agent.apply(_term("Premium retail customer"))
+    assert backend.calls == 1
+
+
+def test_no_llm_backend_keeps_inherited_scheme(base_ontology):
+    agent = TaxonomyAgent(base_ontology)  # no llm_backend → unchanged behaviour
+    term = _term("Premium retail customer")
+    agent.apply(term)
+    assert term.taxonomy_placement.scheme_uri.endswith("/SchemeParty")
+
+
+def test_classify_scheme_false_defers_to_apply_scheme(base_ontology):
+    backend = _FakeSchemeBackend("Document")
+    agent = TaxonomyAgent(base_ontology, llm_backend=backend)
+    term = _term("Premium retail customer")
+    agent.apply(term, classify_scheme=False)
+    assert backend.calls == 0
+    assert term.taxonomy_placement.scheme_uri.endswith("/SchemeParty")  # inherited
+    agent.apply_scheme(term)
+    assert backend.calls == 1
+    assert term.taxonomy_placement.scheme_uri.endswith("/SchemeDocument")
+
+
+def test_apply_scheme_respects_manual_override(base_ontology):
+    backend = _FakeSchemeBackend("Document")
+    agent = TaxonomyAgent(base_ontology, llm_backend=backend)
+    term = _term("ATM")  # present in taxonomy_overrides.json
+    agent.apply(term)
+    scheme_after_apply = term.taxonomy_placement.scheme_uri
+    agent.apply_scheme(term)  # override label → no-op, LLM not consulted
+    assert backend.calls == 0
+    assert term.taxonomy_placement.scheme_uri == scheme_after_apply
+
+
 def test_pluggable_encoder_changes_outcome(base_ontology):
     """Same label, different encoders → different parents (sanity check the
     Encoder protocol is wired through the agent)."""
