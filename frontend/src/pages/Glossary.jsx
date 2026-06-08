@@ -38,6 +38,7 @@ export default function Glossary() {
   const [filterApprover, setFilterApprover] = useState('')
   const [filterVersion,  setFilterVersion]  = useState('')
   const [loading, setLoading] = useState(true)
+  const [dawiso,  setDawiso]  = useState({})  // term_uri -> { busy } | { url } | { error }
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -73,6 +74,21 @@ export default function Glossary() {
     setFilterApprover('')
     setFilterVersion('')
     setSearch('')
+  }
+
+  // Explicit, opt-in push to an external glossary. Kept manual (no auto-publish
+  // on approve) so the same term can later be pushed to Collibra or other
+  // connectors without double-publishing.
+  const publishDawiso = async (e, uri) => {
+    e.stopPropagation()
+    if (dawiso[uri]?.busy) return
+    setDawiso(d => ({ ...d, [uri]: { busy: true } }))
+    try {
+      const res = await api.terms.publishDawiso(uri)
+      setDawiso(d => ({ ...d, [uri]: { url: res.dawiso_url || '' } }))
+    } catch (err) {
+      setDawiso(d => ({ ...d, [uri]: { error: err.message || 'Dawiso publish failed' } }))
+    }
   }
 
   return (
@@ -181,12 +197,12 @@ export default function Glossary() {
               <col style={{ width: 130 }} />
               <col style={{ width: 160 }} />
               <col style={{ width: 70 }} />
-              <col style={{ width: 36 }} />
+              <col style={{ width: 160 }} />
             </colgroup>
             <thead>
               <tr>
                 <th>Label</th><th>Definition</th><th>Scheme</th>
-                <th>Approved by</th><th>Version</th><th />
+                <th>Approved by</th><th>Version</th><th>Export</th>
               </tr>
             </thead>
             <tbody>
@@ -217,7 +233,30 @@ export default function Glossary() {
                       : <span style={{ color: 'var(--ink-3)' }}>—</span>}
                   </td>
                   <td><span className="pill">v{t.version}</span></td>
-                  <td style={{ color: 'var(--ink-3)' }}>→</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    {(() => {
+                      const st = dawiso[t.term_uri] || {}
+                      if (st.url !== undefined) {
+                        return st.url
+                          ? <a href={st.url} target="_blank" rel="noreferrer"
+                               style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                              ✓ View in Dawiso →
+                            </a>
+                          : <span className="pill green">synced</span>
+                      }
+                      return (
+                        <button
+                          className={st.error ? 'btn ghost' : 'btn'}
+                          onClick={e => publishDawiso(e, t.term_uri)}
+                          disabled={st.busy}
+                          title={st.error || 'Push this term to the Dawiso business glossary'}
+                          style={{ height: 26, fontSize: 11.5, padding: '0 9px', whiteSpace: 'nowrap' }}
+                        >
+                          {st.busy ? 'Publishing…' : st.error ? 'Retry' : 'Publish to Dawiso'}
+                        </button>
+                      )
+                    })()}
+                  </td>
                 </tr>
               ))}
             </tbody>

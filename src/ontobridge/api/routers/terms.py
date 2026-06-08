@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import io
 
@@ -224,7 +224,6 @@ def transition_status(
     body: StatusTransitionRequest,
     publisher: PublisherDep,
     audit: AuditDep,
-    background_tasks: BackgroundTasks,
 ):
     try:
         term = publisher.get_term(term_id)
@@ -266,12 +265,9 @@ def transition_status(
         fibo_uri=fibo.uri if fibo else None,
     )
 
-    # Publish to Dawiso when term is approved — fire-and-forget, never blocks response
-    if new_status is LifecycleStatus.PUBLISHED:
-        dawiso = dawiso_integration.get_publisher()
-        if dawiso:
-            background_tasks.add_task(dawiso.publish, updated)
-
+    # Publishing is local-only. Pushing to an external glossary (Dawiso today,
+    # Collibra/others later) is an explicit, opt-in step the steward triggers
+    # from the Glossary or term detail via POST /publish-dawiso.
     return TermSummary.from_published(updated)
 
 
