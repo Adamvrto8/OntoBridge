@@ -5,6 +5,21 @@ Extracts business terms from documents, maps them onto a SKOS/OWL ontology, enri
 
 The primary interface is the **React web app** — FastAPI backend + Vite/React frontend. A REST API is exposed for integration with external data platforms (Dawiso, Collibra, etc.).
 
+---
+
+## System overview
+
+Retail banks accumulate business terms across policy documents, regulations, and product sheets — usually with inconsistent or missing definitions and no shared vocabulary. OntoBridge turns those documents into a **governed business glossary** instead of curating every term by hand.
+
+Each uploaded document flows through a **multi-agent pipeline**: candidate terms are extracted, anchored to FIBO and the bank's own SKOS/OWL ontology, placed in a taxonomy, given a clean definition and semantic relations, then evaluated by a rule-based **governance** layer that assigns a lifecycle state and routes the term to a human steward.
+
+```
+Document → extract → FIBO + ontology match → taxonomy → definition + relations
+         → governance (14 rules) → steward review → published glossary term
+```
+
+The output is a SKOS/OWL glossary, exportable as Turtle/CSV or pushed to an external data catalog (Dawiso today; Collibra and others via the same opt-in connector). The layers and pipeline stages are detailed in the sections below.
+
 ### Three-layer ontology model
 
 OntoBridge governs terms across three layers, from universal to company-specific:
@@ -19,185 +34,48 @@ Designed to run **on-premise**, inside the bank's perimeter — sensitive policy
 
 ---
 
-## System requirements
+## Setup & run
 
-| Tool | Minimum | Notes |
-|---|---|---|
-| Python | 3.10+ | 3.12+ recommended |
-| Node.js | 18+ | For the React frontend |
-| Git | any | |
-
----
-
-## Quick start (minimal — run the app)
-
-### 1. Clone the repository
+Requires **Python 3.10+** (3.12+ recommended) and **Node.js 18+**.
 
 ```bash
-git clone https://github.com/Adamvrto8/OntoBridge.git
-cd OntoBridge/ontobridge
-```
-
-### 2. Create and activate a virtual environment
-
-**Windows (PowerShell):**
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-```
-
-**macOS / Linux:**
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install Python dependencies
-
-```bash
-pip install -e ".[api,readers,llm]"
-```
-
-For Claude API support (needed for LLM extraction with Anthropic models):
-```bash
-pip install -e ".[api,readers,llm,claude]"
-```
-
-### 4. Build and start the React frontend
-
-```bash
-cd frontend
-npm install
-npm run dev   # build once; use 'npm run dev' for hot-reload during development
-```
-
-### 5. Start the FastAPI backend
-
-**Demo mode** (in-memory, resets on restart):
-```powershell
-python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
-```
-
-**Persistent mode** (SQLite, survives restarts):
-```powershell
-$env:DB_PATH = "ontobridge.db"
-python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
-```
-
-**Bank-specific ontology** (load your own schema instead of the baseline):
-```powershell
-$env:ONTOLOGY_PATH = "ontology/sample_bank_acme.ttl"
-python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
-```
-On startup the server prints a one-line summary of what it loaded, e.g.
-`Ontology loaded from ontology/sample_bank_acme.ttl: 18 concepts, 5 schemes, 6 relation pairs.`
-
-**Semantic placement** is on by default when `sentence-transformers` is installed — it gives markedly better taxonomy placement and deduplication than the lexical fallback. Disable with `ONTOBRIDGE_EMBEDDINGS=0` to force the TF-IDF path (faster startup, no model download).
-
-> **Do not use `--reload`** — FIBO ontology indexing takes 1–3 minutes at startup; `--reload` would re-index on every code change.
-
-Open **http://localhost:8001** in your browser.  
-Interactive API docs: **http://localhost:8001/docs**
-
----
-
-## Full developer install (matches the reference environment — 779 tests)
-
-This is what gives you the same setup as the person who set up the project, including all optional NLP packages needed for the full test suite.
-
-```bash
-# 1. Clone and enter the project
+# 1. Clone
 git clone https://github.com/Adamvrto8/OntoBridge.git
 cd OntoBridge/ontobridge
 
-# 2. Create virtual environment
+# 2. Python virtual environment
 python -m venv .venv
-.venv\Scripts\Activate.ps1        # Windows PowerShell
-# source .venv/bin/activate       # macOS / Linux
+.venv\Scripts\Activate.ps1          # Windows PowerShell
+# source .venv/bin/activate         # macOS / Linux
 
-# 3. Install all Python extras
+# 3. Install (all extras — API, document readers, LLM, embeddings, NLP, tests)
 pip install -e ".[api,readers,llm,claude,dev,embeddings,nlp,mcp]"
-
-# 4. Download the spaCy language model (required for NLP tests and extraction)
 python -m spacy download en_core_web_sm
 
-# 5. Install Node.js frontend dependencies
+# 4. Frontend
 cd frontend && npm install && cd ..
-
-# 6. Verify: full test suite should show 779 collected
-pytest --collect-only -q
 ```
 
-Expected output: `779 tests collected` (~65 of those require sentence-transformers / spaCy / chromadb and are skipped automatically when those packages are not installed).
-
----
-
-## What each Python extra provides
-
-| Extra | Install command | What it adds |
-|---|---|---|
-| `api` | included in quick start | FastAPI + Uvicorn REST backend |
-| `readers` | included in quick start | PDF and Word (.docx) document support |
-| `llm` | included in quick start | Ollama-backed LLM extraction |
-| `claude` | `pip install -e ".[claude]"` | Anthropic Claude API support |
-| `dev` | full dev install | pytest + sentence-transformers + spaCy |
-| `embeddings` | full dev install | `SentenceTransformerEncoder` for dense similarity |
-| `nlp` | full dev install | spaCy-based term/SVO extraction |
-| `mcp` | full dev install | MCP server (`mcp_server.py`) |
-| `vector` | optional | ChromaDB policy linker (replaced by TF-IDF linker by default) |
-
----
-
-## Shared team server
-
-Run one instance that the whole team can access over the local network.
-
-### Host machine
+Start the backend (in-memory demo mode):
 
 ```powershell
-# Full install (if not already done)
-pip install -e ".[api,readers,llm,claude]"
-cd frontend && npm install && cd ..
-
-# Start — builds frontend, binds 0.0.0.0, prints LAN IP
-.\start_server.ps1 -Port 8001
+python -m uvicorn api_server:app --port 8001
 ```
 
-The script prints your LAN address:
+Open **http://localhost:8001** (interactive API docs at `/docs`). During frontend work, run `npm run dev` in `frontend/` for hot-reload instead of opening the built app.
 
-```
-========================================
-  OntoBridge starting on port 8001
+Useful environment variables:
 
-  This machine:  http://localhost:8001
-  Team members:  http://192.168.1.42:8001   ← share this
-  API docs:      http://localhost:8001/docs
-========================================
-```
-
-Data is stored in `ontobridge.db` (SQLite) and survives restarts.
-
-> **Note:** `ontobridge.db` is listed in `.gitignore` — it is never committed. Each fresh clone starts with an empty database. This is intentional; the production database lives on the host machine only.
-
-### Connecting (team members)
-
-Open **`http://<host-ip>:8001`** in a browser — no install needed on the client side.
-
-### Running a local dev frontend against the shared API
-
-```powershell
-# In frontend/
-$env:VITE_BACKEND_URL = "http://192.168.1.42:8001"
-npm run dev
-```
-
-### start_server.ps1 options
-
-| Flag | Effect |
+| Variable | Effect |
 |---|---|
-| `.\start_server.ps1 -Port 8001` | Persistent SQLite + builds frontend |
-| `.\start_server.ps1 -Port 8001 -NoBuild` | Skip `npm build` (already built) |
-| `.\start_server.ps1 -Port 8001 -Demo` | In-memory mode (resets on restart) |
+| `DB_PATH=ontobridge.db` | Persist to SQLite instead of in-memory (survives restarts) |
+| `ONTOLOGY_PATH=ontology/sample_bank_acme.ttl` | Load a different ontology (see [Bring your own ontology](#bring-your-own-ontology)) |
+| `ANTHROPIC_API_KEY=sk-ant-...` | Enable Claude-based LLM extraction (see [LLM extraction](#llm-extraction)) |
+| `ONTOBRIDGE_EMBEDDINGS=0` | Force the lighter TF-IDF path instead of sentence-transformers |
+
+> **FIBO** enrichment loads automatically when FIBO is present (see [FIBO ontology integration](#fibo-ontology-integration)). Indexing takes 1–3 minutes at startup, so **do not use `--reload`** — it would re-index on every change.
+
+Run `pytest` to execute the test suite (details under [Running tests](#running-tests)).
 
 ---
 
@@ -207,7 +85,7 @@ OntoBridge ships with a retail-banking **baseline** ontology, but it is not tied
 
 ```powershell
 $env:ONTOLOGY_PATH = "path/to/your_bank.ttl"
-python -m uvicorn api_server:app --host 0.0.0.0 --port 8001
+python -m uvicorn api_server:app --port 8001
 ```
 
 Every agent (mapping, taxonomy, governance, relations, writer) reads from whatever ontology is loaded — there is nothing hardcoded to the baseline. `ontology/sample_bank_acme.ttl` is a complete worked example (a fictional digital challenger bank with its own namespace, schemes, and relation lexicon).
@@ -545,7 +423,7 @@ ontobridge/
 │   │   ├── ner/             # NER extractors (pattern-based + LLM)
 │   │   ├── definition/      # Definition extraction and LLM enrichment
 │   │   ├── fibo/            # FIBO ontology loader, index, matcher
-│   │   ├── taxonomy/        # SKOS taxonomy placement
+│   │   ├── taxonomy/        # SKOS taxonomy placement + scheme classification
 │   │   ├── relations/       # SVO semantic relation extraction
 │   │   ├── governance/      # 14 governance rules (5-state lifecycle)
 │   │   ├── policy_linker/   # TF-IDF and vector similarity to policies
@@ -563,8 +441,7 @@ ontobridge/
 │   └── ontobridge_ontology_v0.1.ttl   # SKOS/OWL ontology (110 concepts, 10 schemes)
 ├── tests/                   # 779 tests (~65 need optional NLP/embedding packages)
 ├── mcp_server.py            # MCP server (fastmcp, STDIO/SSE)
-├── api_server.py            # FastAPI entry point
-└── start_server.ps1         # Shared team server launcher
+└── api_server.py            # FastAPI entry point
 ```
 
 ### What is NOT in the repository (gitignored)
@@ -589,52 +466,3 @@ ontobridge/
 | **Glossary** | Browse published terms, filter by scheme/approver/version, export CSV, and publish each term to an external glossary (Dawiso) |
 | **Pipeline Stats** | Extraction and governance metrics by scheme |
 | **Audit Log** | Full history of all governance actions |
-
----
-
-## Contributing
-
-### Branching model
-
-```
-main          ← stable, always deployable
-  └── feature/<short-description>    e.g. feature/taxonomy-overrides
-  └── fix/<short-description>        e.g. fix/fibo-match-inversion
-  └── chore/<short-description>      e.g. chore/update-readme
-```
-
-### Workflow
-
-1. **Create a branch** from `main`:
-   ```bash
-   git checkout main && git pull
-   git checkout -b feature/your-feature
-   ```
-
-2. **Make changes**, run tests before committing:
-   ```bash
-   pytest
-   ```
-
-3. **Push and open a Pull Request** against `main`:
-   ```bash
-   git push -u origin feature/your-feature
-   # then open a PR on GitHub
-   ```
-
-4. **PR requirements** before merging:
-   - All tests pass
-   - At least one reviewer approval
-   - No secrets or database files committed
-
-5. **Merge** via GitHub (squash or merge commit) — delete the branch after merge.
-
-### Environment setup for contributors
-
-Copy `.env.example` to `.env` and fill in only the values you need locally:
-
-```bash
-cp .env.example .env
-```
-
-Never commit `.env`. It is listed in `.gitignore`.
