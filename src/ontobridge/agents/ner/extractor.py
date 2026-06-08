@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 
 from ontobridge.agents.harvester.protocols import ExtractedTerm, RawDocument
 from ontobridge.agents.ner.backend import LLMBackend
@@ -10,6 +11,8 @@ from ontobridge.agents.ner.prompt import (
     items_to_extracted_terms,
     parse_response,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class LLMNerExtractor:
@@ -56,10 +59,18 @@ class LLMNerExtractor:
 
         key = hashlib.sha256(doc.text.encode()).hexdigest()
         if key not in self._cache:
-            response = self._backend.complete(
-                system=SYSTEM_PROMPT,
-                user=build_user_prompt(doc.text),
-            )
+            try:
+                response = self._backend.complete(
+                    system=SYSTEM_PROMPT,
+                    user=build_user_prompt(doc.text),
+                )
+            except Exception as exc:  # noqa: BLE001 — one chunk must never abort the run
+                logger.warning(
+                    "LLM extraction failed for chunk (section=%s): %s",
+                    doc.section, exc,
+                )
+                self._cache[key] = []
+                return []
             self._cache[key] = parse_response(response)
         items = self._cache[key]
         terms = items_to_extracted_terms(items)

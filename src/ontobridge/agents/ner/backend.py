@@ -4,6 +4,19 @@ import os
 from typing import Protocol, runtime_checkable
 
 
+def _llm_timeout() -> float:
+    """Per-request LLM timeout in seconds (env ONTOBRIDGE_LLM_TIMEOUT, default 60).
+
+    Bounds a single completion call so a hung connection can't freeze the
+    pipeline; combined with per-chunk failure isolation in LLMNerExtractor,
+    a timed-out chunk is skipped rather than aborting the whole upload.
+    """
+    try:
+        return float(os.environ.get("ONTOBRIDGE_LLM_TIMEOUT", "60"))
+    except ValueError:
+        return 60.0
+
+
 @runtime_checkable
 class LLMBackend(Protocol):
     """Minimal interface for a text-completion LLM.
@@ -52,6 +65,7 @@ class OllamaBackend:
                 model=self._model,
                 base_url=self._base_url,
                 temperature=0,
+                client_kwargs={"timeout": _llm_timeout()},
             )
 
         messages = [SystemMessage(content=system), HumanMessage(content=user)]
@@ -103,6 +117,7 @@ class AnthropicBackend:
             self._client = self._anthropic.Anthropic(
                 api_key=self._api_key,
                 max_retries=6,
+                timeout=_llm_timeout(),
             )
 
         message = self._client.messages.create(
@@ -112,4 +127,7 @@ class AnthropicBackend:
             system=system,
             messages=[{"role": "user", "content": user}],
         )
-        return message.content[0].text
+        if not message.content:
+            return ""
+        block = message.content[0]
+        return getattr(block, "text", "") or ""

@@ -25,6 +25,14 @@ _SRC = Path(__file__).resolve().parent / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+# Load secrets from a local .env (gitignored) before anything reads os.environ.
+# Existing real env vars take precedence (override=False).
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
+
 from ontobridge.api.main import create_app
 
 app = create_app(

@@ -1,6 +1,23 @@
 const BASE = '/api'
 const API_KEY = import.meta.env.VITE_API_KEY || ''
 
+// FastAPI returns errors as { detail: ... } where detail is either a string
+// (our own HTTPExceptions) or an array of validation objects (auto-validation,
+// 422). Flatten both into a readable string so the UI never shows [object Object].
+function extractError(body) {
+  if (!body) return null
+  const { detail } = body
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map(d => (d?.loc ? `${d.loc.slice(1).join('.')}: ${d.msg}` : d?.msg))
+      .filter(Boolean)
+      .join('; ')
+  }
+  if (detail && typeof detail === 'object') return detail.msg || JSON.stringify(detail)
+  return typeof body === 'string' ? body : null
+}
+
 async function request(path, options = {}) {
   const { timeout = 30000, headers: callerHeaders = {}, ...fetchOptions } = options
   const headers = {
@@ -12,8 +29,8 @@ async function request(path, options = {}) {
   try {
     const res = await fetch(`${BASE}${path}`, { ...fetchOptions, headers, signal: controller.signal })
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }))
-      throw new Error(err.detail || res.statusText)
+      const err = await res.json().catch(() => null)
+      throw new Error(extractError(err) || res.statusText)
     }
     if (res.status === 204) return null
     return res.json()
@@ -52,6 +69,9 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    // Returns { dawiso_url, term_uri, label }. Requires the term to be PUBLISHED.
+    publishDawiso: (uri) =>
+      request(`/terms/${encodeURIComponent(uri)}/publish-dawiso`, { method: 'POST' }),
     exportCsv: (status) => {
       const q = status ? `?status=${status}` : ''
       window.open(`${BASE}/terms/export/csv${q}`)
@@ -73,8 +93,5 @@ export const api = {
     get: () => request('/stats'),
     concepts: () => request('/stats/concepts'),
     verbs: () => request('/stats/verbs'),
-  },
-  graph: {
-    get: () => request('/graph'),
   },
 }

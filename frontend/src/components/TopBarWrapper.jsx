@@ -5,7 +5,6 @@ import { api } from '../api/client'
 const CRUMBS = {
   '/':         ['Workflow', 'Governance inbox'],
   '/glossary': ['Ontology', 'Glossary'],
-  '/graph':    ['Ontology', 'Knowledge graph'],
   '/pipeline': ['Pipeline', 'Run pipeline'],
   '/stats':    ['Pipeline', 'Pipeline stats'],
   '/audit':    ['Pipeline', 'Audit log'],

@@ -229,6 +229,16 @@ class TestExtract:
         extractor = LLMNerExtractor(MockBackend("[]"))
         assert extractor.extract(_doc("Text without business terms.")) == []
 
+    def test_backend_exception_is_isolated(self):
+        """A backend failure on one chunk must return [] — never propagate —
+        so a single transient API error can't abort the whole document upload."""
+        class RaisingBackend:
+            def complete(self, system: str, user: str) -> str:
+                raise RuntimeError("API connection error")
+
+        extractor = LLMNerExtractor(RaisingBackend())
+        assert extractor.extract(_doc("Some policy text paragraph here.")) == []
+
 
 # ---------------------------------------------------------------------------
 # LLMNerExtractor.extract — filtering

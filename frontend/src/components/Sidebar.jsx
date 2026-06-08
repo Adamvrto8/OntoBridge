@@ -15,15 +15,6 @@ const ChartIcon  = ic("M2 13.5h12M4 11V7M7 11V4M10 11V8M13 11V6")
 const ListIcon   = ic("M3 4h10M3 8h10M3 12h7")
 const LayoutIcon = ic("M2 3h12v4H2zM2 9h6v4H2zM10 9h4v4h-4z")
 
-const GraphIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-       strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="4" cy="12" r="1.5"/><circle cx="12" cy="4" r="1.5"/>
-    <circle cx="11" cy="12" r="1.5"/><circle cx="5" cy="5" r="1.5"/>
-    <path d="M5.8 6 11 4.6M5 6.5l-.6 4M11.5 5.4l-.4 5M5.5 12h4"/>
-  </svg>
-)
-
 /* ── Nav structure ───────────────────────────────────────────────────────── */
 const NAV = [
   {
@@ -36,7 +27,6 @@ const NAV = [
     label: 'Ontology',
     items: [
       { to: '/glossary', label: 'Glossary',                               icon: BookIcon },
-      { to: '/graph',    label: 'Knowledge graph',                          icon: GraphIcon },
     ],
   },
   {

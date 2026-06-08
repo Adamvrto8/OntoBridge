@@ -151,11 +151,10 @@ export default function Inbox() {
       {/* Pipeline funnel */}
       <PipelineFunnel total={total} published={published} lastRun={lastRun} />
 
-      {/* 3-column mid section */}
-      <div className="grid-3">
+      {/* mid section */}
+      <div className="grid-2">
         <CoverageChart byScheme={stats?.by_scheme ?? {}} />
         <LifecycleDonut byStatus={stats?.by_status ?? {}} total={total} />
-        <GraphPreviewCard onOpen={() => navigate('/graph')} total={total} schemeCount={Object.keys(stats?.by_scheme ?? {}).length} />
       </div>
 
       {/* Issues table */}
@@ -393,54 +392,6 @@ export default function Inbox() {
 function fmt(n) {
   if (n == null) return '—'
   return Number(n).toLocaleString()
-}
-
-function GraphPreviewCard({ onOpen, total, schemeCount }) {
-  const nodes = [
-    { x: 50,  y: 110, r: 9,  hub: true },
-    { x: 130, y: 60,  r: 5 }, { x: 200, y: 95,  r: 5 },
-    { x: 175, y: 165, r: 4 }, { x: 95,  y: 190, r: 4 },
-    { x: 270, y: 150, r: 4, red: true }, { x: 260, y: 50, r: 3 },
-    { x: 320, y: 95,  r: 3 }, { x: 35,  y: 50,  r: 3 }, { x: 380, y: 130, r: 4 },
-  ]
-  const edges = [[0,1],[0,4],[1,2],[1,3],[2,5],[2,6],[2,7],[0,8],[5,9],[3,4]]
-
-  return (
-    <div className="card graph-card">
-      <div className="card-h">
-        <h3>Knowledge graph</h3>
-        <button className="btn ghost" style={{ height: 26, padding: '0 8px', fontSize: 12 }} onClick={onOpen}>
-          Open full graph →
-        </button>
-      </div>
-      <div style={{ padding: 12 }}>
-        <div className="canvas">
-          <svg viewBox="0 0 420 240" preserveAspectRatio="xMidYMid meet">
-            {edges.map(([a, b], i) => (
-              <line key={i} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y}
-                stroke="#B0C4CC" strokeWidth="0.8" />
-            ))}
-            {nodes.map((n, i) => (
-              <g key={i}>
-                {n.hub && <circle cx={n.x} cy={n.y} r={n.r + 4} fill="none" stroke="#1A2528" strokeWidth="0.9" />}
-                <circle cx={n.x} cy={n.y} r={n.r} fill={n.red ? '#D93B2B' : (n.hub ? '#1A2528' : '#7A9BAA')} />
-                {n.hub && <circle cx={n.x} cy={n.y} r={n.r - 3} fill="#FFFFFF" />}
-              </g>
-            ))}
-          </svg>
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 12, color: 'var(--ink-2)' }}>
-          {[['#1A2528','Hub class'],['#7A9BAA','Concept'],['#D93B2B','Conflict']].map(([c,l]) => (
-            <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: c, display: 'inline-block' }} />
-              {l}
-            </span>
-          ))}
-          <span style={{ marginLeft: 'auto', color: 'var(--ink-3)' }}>{total} nodes · {schemeCount} schemes</span>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 const ExtIcon   = () => <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h4v4M13 3 7 9M7 4H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V9"/></svg>

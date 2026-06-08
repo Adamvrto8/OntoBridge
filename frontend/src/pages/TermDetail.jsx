@@ -49,6 +49,10 @@ export default function TermDetail() {
   const [loading,    setLoading]    = useState(true)
   const [actor,      setActor]      = useState('')
 
+  // Dawiso publish
+  const [dawisoBusy,   setDawisoBusy]   = useState(false)
+  const [dawisoResult, setDawisoResult] = useState(null)  // { url } | { error }
+
   // Definition editing
   const [editingDef, setEditingDef] = useState(false)
   const [defDraft,   setDefDraft]   = useState('')
@@ -90,8 +94,22 @@ export default function TermDetail() {
   const transition = async (newStatus) => {
     try {
       await api.terms.transition(uri, { new_status: newStatus, actor: actor || 'steward' })
+      setDawisoResult(null)
       load()
     } catch (e) { alert(e.message) }
+  }
+
+  const publishDawiso = async () => {
+    if (dawisoBusy) return
+    setDawisoBusy(true); setDawisoResult(null)
+    try {
+      const res = await api.terms.publishDawiso(uri)
+      setDawisoResult({ url: res.dawiso_url || '' })
+    } catch (e) {
+      setDawisoResult({ error: e.message || 'Dawiso publish failed' })
+    } finally {
+      setDawisoBusy(false)
+    }
   }
 
   const startEditDef = () => {
@@ -681,6 +699,51 @@ export default function TermDetail() {
                 </>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Dawiso publish */}
+        <div className="card">
+          <div className="card-h">
+            <h3>Dawiso business glossary</h3>
+            {dawisoResult?.url && <span className="pill green">synced</span>}
+          </div>
+          <div className="card-b" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {term.lifecycle_status === 'published' ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <button className="btn primary" style={{ height: 32 }} onClick={publishDawiso} disabled={dawisoBusy}>
+                    {dawisoBusy ? 'Publishing…' : 'Publish to Dawiso'}
+                  </button>
+                  <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                    Pushes this term as a Business Term under its domain, with synonyms.
+                  </span>
+                </div>
+                {dawisoResult?.url && (
+                  <div style={{ fontSize: 13, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    ✓ Published to Dawiso
+                    <a href={dawisoResult.url} target="_blank" rel="noreferrer" style={{ color: 'var(--green)', fontWeight: 500 }}>
+                      View in Dawiso →
+                    </a>
+                  </div>
+                )}
+                {dawisoResult && dawisoResult.url === '' && (
+                  <div style={{ fontSize: 13, color: 'var(--amber)' }}>
+                    Request sent, but Dawiso returned no URL — check that the Dawiso cookies in <span className="mono">.env</span> are still valid.
+                  </div>
+                )}
+                {dawisoResult?.error && (
+                  <div style={{ fontSize: 13, color: 'var(--red)' }}>{dawisoResult.error}</div>
+                )}
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button className="btn" disabled style={{ height: 32, opacity: 0.5 }}>Publish to Dawiso</button>
+                <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                  Approve this term to <strong>published</strong> first to enable Dawiso publishing.
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

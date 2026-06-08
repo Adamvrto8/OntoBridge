@@ -9,7 +9,6 @@ import Pipeline from './pages/Pipeline'
 import TermDetail from './pages/TermDetail'
 import Stats from './pages/Stats'
 import AuditLog from './pages/AuditLog'
-import Graph from './pages/Graph'
 import Miro from './pages/Miro'
 
 export default function App() {
@@ -36,7 +35,6 @@ export default function App() {
             <Route path="/pipeline" element={<Pipeline />} />
             <Route path="/glossary" element={<Glossary />} />
             <Route path="/stats"    element={<Stats />} />
-            <Route path="/graph"    element={<Graph />} />
             <Route path="/audit"    element={<AuditLog />} />
             <Route path="/miro"     element={<Miro />} />
             <Route path="/terms"    element={<TermDetail />} />
