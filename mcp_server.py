@@ -110,7 +110,7 @@ def _fmt_term(t: dict) -> str:
 @mcp.tool()
 def get_stats() -> str:
     """Return an overview of the OntoBridge glossary: total terms, status breakdown,
-    definition coverage by scheme, and recent audit activity."""
+    term counts by scheme, and recent audit activity."""
     s = _get("/stats")
     by_status = s.get("by_status", {})
     by_scheme = s.get("by_scheme", {})
@@ -122,8 +122,8 @@ def get_stats() -> str:
         "Status breakdown:",
         *[f"  {k}: {v}" for k, v in by_status.items()],
         "",
-        "Definition coverage by scheme (% terms with definition):",
-        *[f"  {k}: {v}%" for k, v in by_scheme.items()],
+        "Terms by domain:",
+        *[f"  {k}: {v}" for k, v in by_scheme.items()],
     ]
     return "\n".join(lines)
 

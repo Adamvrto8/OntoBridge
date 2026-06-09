@@ -60,28 +60,30 @@ export default function Stats() {
 
           <div className="card">
             <div className="card-h">
-              <h3>By Scheme</h3>
-              <span className="meta mono">definition coverage %</span>
+              <h3>Terms by domain</h3>
+              <span className="meta mono">term count</span>
             </div>
             <div className="card-b">
               {Object.keys(stats.by_scheme).length === 0 ? (
                 <p style={{ color: 'var(--ink-3)', fontSize: 12 }}>No scheme data yet.</p>
-              ) : (
-                <div className="bars">
-                  {Object.entries(stats.by_scheme)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([s, pct]) => (
-                      <div key={s} className={`bar-row${pct < 80 ? ' alert' : ''}`}>
-                        <div className="nm">{s}</div>
-                        <div className="track">
-                          <div className="fill" style={{ width: `${Math.min(pct, 100)}%` }} />
-                          <div className="threshold" style={{ left: '80%' }} />
+              ) : (() => {
+                const max = Math.max(1, ...Object.values(stats.by_scheme))
+                return (
+                  <div className="bars">
+                    {Object.entries(stats.by_scheme)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([s, count]) => (
+                        <div key={s} className="bar-row">
+                          <div className="nm">{s}</div>
+                          <div className="track">
+                            <div className="fill" style={{ width: `${Math.round(count / max * 100)}%` }} />
+                          </div>
+                          <div className="pc">{count}</div>
                         </div>
-                        <div className="pc">{pct}%</div>
-                      </div>
-                    ))}
-                </div>
-              )}
+                      ))}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>

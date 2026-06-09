@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import MetricCard from '../components/MetricCard'
 import PipelineFunnel from '../components/PipelineFunnel'
 import LifecycleDonut from '../components/LifecycleDonut'
-import CoverageChart from '../components/CoverageChart'
+import SchemeChart from '../components/SchemeChart'
 
 const SEV_FILTERS = ['all', 'crit', 'high', 'med', 'low']
 const SEV_LABEL   = { all: 'All', crit: 'Critical', high: 'High', med: 'Medium', low: 'Low' }
@@ -153,7 +153,7 @@ export default function Inbox() {
 
       {/* mid section */}
       <div className="grid-2">
-        <CoverageChart byScheme={stats?.by_scheme ?? {}} />
+        <SchemeChart byScheme={stats?.by_scheme ?? {}} />
         <LifecycleDonut byStatus={stats?.by_status ?? {}} total={total} />
       </div>
 
