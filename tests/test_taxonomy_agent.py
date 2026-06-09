@@ -314,8 +314,15 @@ def test_llm_scheme_overrides_inherited_scheme(base_ontology):
     agent.apply(term)
     assert backend.calls == 1
     assert term.taxonomy_placement.scheme_uri.endswith("/SchemeDocument")
-    # Only the scheme is reclassified — broader-concept placement is untouched.
-    assert term.taxonomy_placement.broader_concept_uri.endswith("/RetailCustomer")
+    # Broader must stay consistent with the classified scheme: either a parent
+    # in the Document scheme, or unresolved — never a cross-scheme parent like
+    # RetailCustomer (which lives in the Party scheme).
+    pl = term.taxonomy_placement
+    if pl.broader_concept_uri is not None:
+        parent = base_ontology.by_uri(pl.broader_concept_uri)
+        assert parent is not None and parent.scheme == pl.scheme_uri
+    else:
+        assert pl.status is PlacementStatus.UNRESOLVED
 
 
 def test_llm_scheme_handles_verbose_reply(base_ontology):
@@ -324,6 +331,8 @@ def test_llm_scheme_handles_verbose_reply(base_ontology):
     term = _term("Premium retail customer")
     agent.apply(term)
     assert term.taxonomy_placement.scheme_uri.endswith("/SchemeParty")
+    # Scheme matches the broader concept's scheme, so the parent is left intact.
+    assert term.taxonomy_placement.broader_concept_uri.endswith("/RetailCustomer")
 
 
 def test_llm_scheme_failure_is_isolated(base_ontology):
@@ -359,6 +368,13 @@ def test_classify_scheme_false_defers_to_apply_scheme(base_ontology):
     agent.apply_scheme(term)
     assert backend.calls == 1
     assert term.taxonomy_placement.scheme_uri.endswith("/SchemeDocument")
+    # apply_scheme also reconciles the parent: no cross-scheme broader survives.
+    pl = term.taxonomy_placement
+    if pl.broader_concept_uri is not None:
+        parent = base_ontology.by_uri(pl.broader_concept_uri)
+        assert parent is not None and parent.scheme == pl.scheme_uri
+    else:
+        assert pl.status is PlacementStatus.UNRESOLVED
 
 
 def test_apply_scheme_respects_manual_override(base_ontology):

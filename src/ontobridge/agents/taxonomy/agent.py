@@ -177,6 +177,7 @@ class TaxonomyAgent:
         #    agent has polished term.definition, then calls apply_scheme().
         if classify_scheme:
             self._apply_llm_scheme(term)
+            self._reconcile_broader_with_scheme(term)
         return term
 
     def apply_scheme(self, term: EnrichedTerm) -> None:
@@ -189,6 +190,7 @@ class TaxonomyAgent:
         if self._overrides.get((term.preferred_label or "").casefold()):
             return  # explicit override — keep its scheme
         self._apply_llm_scheme(term)
+        self._reconcile_broader_with_scheme(term)
 
     def _apply_llm_scheme(self, term: EnrichedTerm) -> None:
         placement = term.taxonomy_placement
@@ -197,6 +199,53 @@ class TaxonomyAgent:
         scheme_uri = self._classify_scheme(term)
         if scheme_uri:
             placement.scheme_uri = scheme_uri
+
+    def _reconcile_broader_with_scheme(self, term: EnrichedTerm) -> None:
+        """Keep the broader concept consistent with the classified scheme.
+
+        Scheme classification is decoupled from broader-concept placement, so a
+        term can end up with an LLM scheme (e.g. Process) while its nearest-
+        neighbour parent sits in another scheme (e.g. an Organisation role like
+        "Relationship manager"). When that happens, re-pick the best parent
+        *within the classified scheme*; if none clears the threshold, mark the
+        placement UNRESOLVED rather than assert a cross-scheme parent.
+
+        FIBO-anchored parents (not present in the local ontology) are left
+        untouched — their hierarchy is intentional.
+        """
+        placement = term.taxonomy_placement
+        if placement is None or not placement.scheme_uri:
+            return
+        broader_uri = placement.broader_concept_uri
+        parent = self.ontology.by_uri(broader_uri) if broader_uri else None
+        if broader_uri and parent is None:
+            return  # FIBO / external parent — leave it
+        if parent is not None and parent.scheme == placement.scheme_uri:
+            return  # already consistent
+
+        label = term.preferred_label or ""
+        best = self._best_parent_in_scheme(
+            label, placement.scheme_uri, self._excluded_uri(term)
+        )
+        if best is not None and best.score >= self.placement_threshold:
+            placement.broader_concept_uri = best.concept.uri
+            placement.placement_confidence = best.score
+            placement.status = PlacementStatus.PLACED
+            placement.sibling_conflicts = self._sibling_conflicts(label, best.concept.uri)
+        else:
+            placement.broader_concept_uri = None
+            placement.placement_confidence = best.score if best is not None else 0.0
+            placement.status = PlacementStatus.UNRESOLVED
+            placement.sibling_conflicts = []
+
+    def _best_parent_in_scheme(
+        self, label: str, scheme_uri: str, excluded_uri: str | None
+    ) -> _ParentScore | None:
+        """Highest-scoring candidate parent that belongs to ``scheme_uri``."""
+        for p in self._rank_parents(label, excluded_uri):
+            if p.concept.scheme == scheme_uri:
+                return p
+        return None
 
     def _classify_scheme(self, term: EnrichedTerm) -> str | None:
         if self.llm_backend is None:
