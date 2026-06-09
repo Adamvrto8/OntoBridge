@@ -181,7 +181,7 @@ export default function Pipeline() {
         {result && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--gap)' }}>
-              <ResultCard label="Published" value={result.published} color="var(--green)" bg="var(--green-bg)" />
+              <ResultCard label="Extracted" value={result.published} color="var(--green)" bg="var(--green-bg)" />
               <ResultCard label="Skipped"   value={result.skipped}   color="var(--amber)" bg="var(--amber-bg)" />
               <ResultCard label="Failed"    value={result.failed}    color="var(--red)"   bg="var(--red-bg)" />
             </div>
