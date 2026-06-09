@@ -37,13 +37,14 @@ export default function Glossary() {
   const [filterScheme,   setFilterScheme]   = useState('')
   const [filterApprover, setFilterApprover] = useState('')
   const [filterVersion,  setFilterVersion]  = useState('')
+  const [filterStatus,   setFilterStatus]   = useState('published')
   const [loading, setLoading] = useState(true)
   const [dawiso,  setDawiso]  = useState({})  // term_uri -> { busy } | { url } | { error }
   const navigate = useNavigate()
 
   useEffect(() => {
     setLoading(true)
-    api.terms.list({ status: 'published' }).then(data => setTerms(data.items)).finally(() => setLoading(false))
+    api.terms.list({}).then(data => setTerms(data.items)).finally(() => setLoading(false))
   }, [])
 
   // Unique option lists
@@ -53,6 +54,7 @@ export default function Glossary() {
 
   const filtered = useMemo(() => {
     let r = terms
+    if (filterStatus)   r = r.filter(t => t.lifecycle_status === filterStatus)
     if (filterScheme)   r = r.filter(t => t.scheme_label === filterScheme)
     if (filterApprover) r = r.filter(t => t.approved_by  === filterApprover)
     if (filterVersion)  r = r.filter(t => String(t.version) === filterVersion)
@@ -65,7 +67,7 @@ export default function Glossary() {
       )
     }
     return r
-  }, [terms, search, filterScheme, filterApprover, filterVersion])
+  }, [terms, search, filterStatus, filterScheme, filterApprover, filterVersion])
 
   const hasFilters = filterScheme || filterApprover || filterVersion || search.trim()
 
@@ -98,15 +100,12 @@ export default function Glossary() {
           <h1>Glossary</h1>
           <div className="sub">
             {loading ? 'Loading…'
-              : `${terms.length} published term${terms.length !== 1 ? 's' : ''} across ${schemes.length} concept scheme${schemes.length !== 1 ? 's' : ''}. SKOS prefLabels, definitions, and approvers — the canonical view.`}
+              : `${terms.length} term${terms.length !== 1 ? 's' : ''} across ${schemes.length} concept scheme${schemes.length !== 1 ? 's' : ''} and all lifecycle states. SKOS prefLabels, definitions, and provenance — the canonical view.`}
           </div>
         </div>
         <div className="actions">
-          <button className="btn" onClick={() => window.open('/api/terms/export/csv?status=published')}>
-            <ExtIcon /> Export CSV
-          </button>
-          <button className="btn primary" onClick={() => api.terms.exportCsv('published')}>
-            <DownIcon /> Export CSV
+          <button className="btn primary" onClick={() => api.terms.exportCsv(filterStatus || undefined)}>
+            <DownIcon /> Export CSV{filterStatus ? ` (${filterStatus})` : ''}
           </button>
         </div>
       </div>
@@ -132,6 +131,21 @@ export default function Glossary() {
         </div>
 
         <div style={{ width: 1, height: 20, background: 'var(--ice)' }} />
+
+        {/* Status filter — lifecycle view selector */}
+        <div style={{ position: 'relative' }}>
+          <label style={{ position: 'absolute', top: -16, left: 2, font: '500 10px var(--font-sans)', color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+            Status
+          </label>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...sel, minWidth: 130, color: filterStatus ? 'var(--ink)' : 'var(--ink-3)' }}>
+            <option value="">All statuses</option>
+            <option value="candidate">Candidate</option>
+            <option value="draft">Draft</option>
+            <option value="review">Review</option>
+            <option value="published">Published</option>
+            <option value="deprecated">Deprecated</option>
+          </select>
+        </div>
 
         {/* Scheme filter */}
         <div style={{ position: 'relative' }}>
@@ -235,6 +249,14 @@ export default function Glossary() {
                   <td><span className="pill">v{t.version}</span></td>
                   <td onClick={e => e.stopPropagation()}>
                     {(() => {
+                      if (t.lifecycle_status !== 'published') {
+                        return (
+                          <span className="pill" style={{ color: 'var(--ink-3)', textTransform: 'capitalize' }}
+                                title="Only published terms can be exported to Dawiso">
+                            {t.lifecycle_status}
+                          </span>
+                        )
+                      }
                       const st = dawiso[t.term_uri] || {}
                       if (st.url !== undefined) {
                         return st.url
@@ -265,7 +287,7 @@ export default function Glossary() {
       )}
 
       <div className="footer-bar">
-        <span>{filtered.length} of {terms.length} published terms shown</span>
+        <span>{filtered.length} of {terms.length} terms shown</span>
         {hasFilters && (
           <span style={{ color: 'var(--ink-3)' }}>
             {filterScheme && `scheme: ${filterScheme}`}
@@ -284,5 +306,4 @@ const SearchIcon = () => (
     <circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>
   </svg>
 )
-const ExtIcon = () => <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h4v4M13 3 7 9M7 4H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V9"/></svg>
 const DownIcon = () => <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v9m-3-3 3 3 3-3M3 13.5h10"/></svg>
