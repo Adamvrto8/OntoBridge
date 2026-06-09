@@ -47,13 +47,10 @@ if (-not $Demo) {
 $env:CORS_ORIGINS = ""
 
 # --- Dawiso integration (optional) ---
-# Set these to automatically publish approved terms to Dawiso Business Glossary.
-# Get jwt and session_id from your browser: DevTools → Network → any request → Cookie header.
-# Leave empty to disable Dawiso publishing.
-$env:DAWISO_URL        = "https://vse-demo.dawiso.cloud"
-$env:DAWISO_SPACE_ID   = "168"   # OntoBridge-test space
-$env:DAWISO_JWT        = "***REMOVED***"
-$env:DAWISO_SESSION_ID = "***REMOVED***="
+# Configure Dawiso through .env (loaded automatically at startup):
+#   DAWISO_URL, DAWISO_JWT, DAWISO_SESSION_ID, DAWISO_SPACE_ID, DAWISO_APP_ID
+# jwt and session_id are browser-session cookies — keep them in .env, never commit them.
+# See .env.example. Leave unset to disable Dawiso publishing.
 
 # --- 4. Print access info ---
 Write-Host ""
